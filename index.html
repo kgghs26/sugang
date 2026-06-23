@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>2026 경기여고 수강신청 시뮬레이션</title>
+<title>2026 경기여고 수강신청 로드맵</title>
 
 <!-- 폰트: 본문/UI = Pretendard, 디스플레이 제목 = Nanum Myeongjo -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -416,7 +416,7 @@
     <header class="masthead">
       <div>
         <div class="eyebrow">경기여자고등학교 · 나의 진로설계와 수강신청</div>
-        <h1><span class="yr">2026</span>학년도 입학생 수강신청 시뮬레이션</h1>
+        <h1><span class="yr">2026</span>학년도 입학생 수강신청 로드맵</h1>
       </div>
       <div class="ident">
         <label for="who">학번/이름</label>
@@ -451,10 +451,7 @@
 
   <p class="note">
     이 페이지는 <b>가상의 수강신청 연습</b>입니다. 실제 수강신청은 리로스쿨 &gt; 교육과정 &gt; 수강신청에서 진행합니다.
-    학교 지정 과목(필수)은 별도로 선택하지 않으며, 위 조건의 과목 수에 포함되지 않습니다.
-  </p>
-    <p class="note">
-    실제 수강신청은 <b? 학년 단위 </b>로 이루어집니다.
+    학교 지정 과목(필수)은 별도로 선택하지 않으며, 위 조건의 과목 수에 포함되지 않습니다.<br>실제 수강신청은 <b>< 학년 단위 </b>로 이루어집니다.
   </p>
 
 </div>
@@ -776,13 +773,13 @@ async function exportPDF(){
     const y = margin;                    // 상단 정렬
 
     pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
-    // 파일명: [학번이름]선택과목 시뮬레이션_YYMMDD  (예: [10101김경기]선택과목 시뮬레이션_260622)
+    // 파일명: [학번이름]선택과목 로드맵_YYMMDD  (예: [10101김경기]선택과목 로드맵_260622)
     const idName = (who.value || "").trim().replace(/\s+/g, ""); // 공백 제거
     const d = new Date();
     const yymmdd = String(d.getFullYear()).slice(2)
                  + String(d.getMonth() + 1).padStart(2, "0")
                  + String(d.getDate()).padStart(2, "0");
-    const fname = `${idName ? "[" + idName + "]" : ""}선택과목 시뮬레이션_${yymmdd}`
+    const fname = `${idName ? "[" + idName + "]" : ""}선택과목 로드맵_${yymmdd}`
                     .replace(/[\\/:*?"<>|]/g, "_");  // 파일명 사용 불가 문자만 치환
     pdf.save(fname + ".pdf");
   } catch(e){

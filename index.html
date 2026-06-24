@@ -200,13 +200,29 @@
     letter-spacing:.04em; margin:2px 0 6px;
   }
 
+  /* 과목 행: ⓘ + 과목 버튼 */
+  .course-row{ display:flex; align-items:stretch; gap:5px; margin-bottom:6px; position:relative; }
+  .info-ic{
+    flex:0 0 auto; align-self:center;
+    width:17px; height:17px; padding:0; cursor:pointer;
+    border:1.4px solid var(--ink-soft); border-radius:50%;
+    background:#fff; color:var(--ink-soft);
+    font-family:Georgia, "Times New Roman", serif; font-style:italic;
+    font-weight:700; font-size:11px; line-height:1;
+    display:grid; place-items:center;
+    transition:background .12s, color .12s, border-color .12s;
+  }
+  .info-ic:hover{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .info-ic:focus-visible{ outline:2px solid var(--sel); outline-offset:2px; }
+  .info-sp{ flex:0 0 auto; width:17px; }
+
   /* 과목 버튼 */
   .course{
-    width:100%; text-align:left; cursor:pointer;
+    flex:1 1 auto; min-width:0; text-align:left; cursor:pointer;
     display:flex; align-items:center; gap:8px;
     font-family:var(--font-body); font-size:13.5px; color:var(--ink);
     background:#fff; border:1.4px solid var(--line);
-    border-radius:8px; padding:8px 10px; margin-bottom:6px;
+    border-radius:8px; padding:8px 10px;
     transition:border-color .12s, background .12s, transform .06s;
   }
   .course:hover{ border-color:var(--line-strong); }
@@ -306,6 +322,7 @@
 
   /* ===== 캡처 중 임시 스타일 ===== */
   body.capturing .no-print{ display:none !important; }
+  body.capturing .info-sp{ display:none !important; }
   body.capturing .col-head{ position:static !important; }
   body.capturing .spread{ overflow:visible !important; }
   /* 잉크 절약: 어두운 학기 헤더 → 흰 배경 + 네이비 글씨로 반전 (이 부분만) */
@@ -405,6 +422,56 @@
   @media (prefers-reduced-motion: reduce){
     *{ transition:none !important; }
   }
+
+  /* ===== ⓘ 팝오버 ===== */
+  .media-pop{
+    position:fixed; z-index:60; display:flex; align-items:center; gap:4px;
+    padding:3px; border-radius:8px;
+    background:var(--ink); box-shadow:0 8px 22px -8px rgba(28,43,70,.6);
+  }
+  .media-pop[hidden]{ display:none; }
+  .mp-btn{
+    width:26px; height:26px; padding:0; cursor:pointer;
+    border:none; border-radius:6px; background:#c0392b; color:#fff;
+    display:grid; place-items:center;
+    transition:transform .08s, filter .12s;
+  }
+  .mp-btn.yt{ background:#ff0000; }
+  .mp-btn:hover{ filter:brightness(1.1); }
+  .mp-btn:active{ transform:scale(.93); }
+
+  /* ===== 미디어 모달 ===== */
+  .media-modal{ position:fixed; inset:0; z-index:70; display:grid; place-items:center; }
+  .media-modal[hidden]{ display:none; }
+  .mm-backdrop{ position:absolute; inset:0; background:rgba(20,28,46,.62); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); }
+  .mm-panel{
+    position:relative; z-index:1;
+    width:min(960px, 96vw); height:min(980px, 92vh);
+    display:flex; flex-direction:column;
+    background:#fff; border-radius:14px; overflow:hidden;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.6);
+  }
+  .mm-head{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:11px 14px; background:var(--ink); color:#fff;
+  }
+  .mm-title{ font-weight:700; font-size:14.5px; }
+  .mm-actions{ display:flex; align-items:center; gap:12px; }
+  .mm-ext{ color:#cdd6e6; font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+  .mm-ext:hover{ color:#fff; text-decoration:underline; }
+  .mm-x{
+    width:30px; height:30px; cursor:pointer; border:none; border-radius:8px;
+    background:rgba(255,255,255,.14); color:#fff; font-size:15px; line-height:1;
+  }
+  .mm-x:hover{ background:rgba(255,255,255,.28); }
+  .mm-body{ flex:1 1 auto; min-height:0; background:#33373d; }
+  .mm-body iframe{ width:100%; height:100%; border:none; display:block; }
+  .mm-body.yt{ background:#000; display:grid; place-items:center; }
+  .mm-body.yt iframe{ width:100%; aspect-ratio:16/9; height:auto; max-height:100%; }
+
+  @media (max-width: 680px){
+    .mm-panel{ width:100vw; height:100vh; border-radius:0; }
+  }
 </style>
 </head>
 <body>
@@ -451,7 +518,7 @@
 
   <p class="note">
     이 페이지는 <b>가상의 수강신청 연습</b>입니다. 실제 수강신청은 리로스쿨 &gt; 교육과정 &gt; 수강신청에서 진행합니다.
-    학교 지정 과목(필수)은 별도로 선택하지 않으며, 위 조건의 과목 수에 포함되지 않습니다.<br>실제 수강신청은 <b> 학년 단위 </b>로 이루어집니다.
+    <br>실제 수강신청은 <b> 학년 단위 </b>로 이루어집니다.
   </p>
 
 </div>
@@ -463,6 +530,31 @@
 
 <!-- 화면 하단 고정 미니바: 교과군 필수요건만 표시 (모바일/데스크톱 공통) -->
 <div class="statusbar no-print" id="statusbar" aria-label="교과군 필수 조건 충족 현황"></div>
+
+<!-- ⓘ 클릭 시 뜨는 작은 팝오버 (PDF / 유튜브 아이콘) -->
+<div id="mediaPop" class="media-pop no-print" hidden>
+  <button class="mp-btn" data-kind="pdf" type="button" title="PDF 과목 안내 보기" aria-label="PDF 보기">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5z"/><text x="12" y="17" font-size="6.5" font-weight="700" text-anchor="middle" fill="#fff">PDF</text></svg>
+  </button>
+  <button class="mp-btn yt" data-kind="yt" type="button" title="유튜브 과목 안내 보기" aria-label="유튜브 보기">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M23 12s0-3.5-.45-5.18a2.78 2.78 0 0 0-1.95-1.96C18.9 4.4 12 4.4 12 4.4s-6.9 0-8.6.46A2.78 2.78 0 0 0 1.45 6.82C1 8.5 1 12 1 12s0 3.5.45 5.18a2.78 2.78 0 0 0 1.95 1.96c1.7.46 8.6.46 8.6.46s6.9 0 8.6-.46a2.78 2.78 0 0 0 1.95-1.96C23 15.5 23 12 23 12z"/><path fill="#fff" d="M9.75 15.5l5.75-3.5-5.75-3.5z"/></svg>
+  </button>
+</div>
+
+<!-- PDF / 유튜브 모달 -->
+<div id="mediaModal" class="media-modal no-print" hidden>
+  <div class="mm-backdrop" data-close="1"></div>
+  <div class="mm-panel" role="dialog" aria-modal="true" aria-labelledby="mmTitle">
+    <div class="mm-head">
+      <span class="mm-title" id="mmTitle"></span>
+      <div class="mm-actions">
+        <a class="mm-ext" id="mmExt" href="#" target="_blank" rel="noopener" hidden>새 탭에서 열기 ↗</a>
+        <button class="mm-x" id="mmClose" type="button" aria-label="닫기">✕</button>
+      </div>
+    </div>
+    <div class="mm-body" id="mmBody"></div>
+  </div>
+</div>
 
 <script>
 /* =========================================================
@@ -486,6 +578,79 @@ function catOf(subject){
   if(subject==="예술") return "ART";
   return "ETC";
 }
+
+/* 과목별 자료: p = guide.pdf 물리 페이지, y = 유튜브 영상 ID
+   (음악콘텐츠 제작 기초·조형탐구1은 자료가 없어 제외 → ⓘ 미표시) */
+const MEDIA={
+  "주제 탐구 독서":{p:40,y:"f2c5THgpmak"},
+  "기하":{p:49,y:"qnNEHIyn1OU"},
+  "영미 문학 읽기":{p:59,y:"nFXtrdvmVlw"},
+  "세계시민과 지리":{p:66,y:"8p1Iy8TgjXI"},
+  "현대사회와 윤리":{p:69,y:"B_6Jq4u_DHY"},
+  "법과 사회":{p:71,y:"D5fvo3khGcI"},
+  "동아시아 역사 기행":{p:74,y:"OgIn8jrrak0"},
+  "금융과 경제생활":{p:82,y:"GxjyRRXwgEM"},
+  "물리학":{p:87,y:"inDup_lRBes"},
+  "화학":{p:88,y:"kE_t-3SlBUQ"},
+  "지구과학":{p:90,y:"OJduZuwnmwc"},
+  "세포와 물질대사":{p:95,y:"60ZNah735uI"},
+  "데이터 과학":{p:122,y:"xF6bt7sxTZQ"},
+  "스페인어":{p:125,y:"2JyX4PV3O28"},
+  "일본어":{p:125,y:"XOZT2Xmshk8"},
+  "음악 연주와 창작":{p:111,y:"V1-64ky4OoI"},
+  "미술 창작":{p:115,y:"-TQSYy3-eNI"},
+  "문학과 영상":{p:41,y:"_i661jyHjbY"},
+  "인공지능 수학":{p:51,y:"uhIfxd0SweQ"},
+  "세계 문화와 영어":{p:63,y:"ENw3_J_XrIk"},
+  "사회와 문화":{p:68,y:"67oFbY8Rkys"},
+  "세계사":{p:67,y:"Wbh9eI_02_w"},
+  "정치":{p:73,y:"F3gkE64YF6w"},
+  "윤리문제 탐구":{p:83,y:"tln1XgsFwxU"},
+  "기후변화와 지속가능한 세계":{p:84,y:"j8RNTH4_BcM"},
+  "생명과학":{p:89,y:"3TfxrTHO2nI"},
+  "역학과 에너지":{p:91,y:"P1gsKXHt0Qk"},
+  "물질과 에너지":{p:93,y:"K8pbCur_le0"},
+  "지구시스템과학":{p:97,y:"REq4IcQJpZY"},
+  "아동발달과 부모":{p:121,y:"k2_ye1IJx68"},
+  "스페인어 회화":{p:127,y:"5zgUckjkcEA"},
+  "일본어 회화":{p:127,y:"z219CCYuPi4"},
+  "음악 감상과 비평":{p:112,y:"0jh4tHjc0Hg"},
+  "미술 감상과 비평":{p:116,y:"6gz5hjfU8WU"},
+  "독서 토론과 글쓰기":{p:42,y:"EWeFbPn1Joo"},
+  "미적분Ⅱ":{p:50,y:"RvVz-HtHgLs"},
+  "수학과제 탐구":{p:54,y:"WgEo6GqrcKg"},
+  "심화 영어":{p:60,y:"0rXqEFbQwTk"},
+  "윤리와 사상":{p:76,y:"ZBdTW9hZOdc"},
+  "경제":{p:75,y:"DfL9JlpxisY"},
+  "한국지리 탐구":{p:70,y:"cgj5-o38mCg"},
+  "사회문제 탐구":{p:81,y:"LAkca6ix5Ck"},
+  "역사로 탐구하는 현대 세계":{p:80,y:"KcM2IDNmMR8"},
+  "전자기와 양자":{p:92,y:"metLGbJoyYY"},
+  "화학 반응의 세계":{p:94,y:"WeA06Ffmu5U"},
+  "생물의 유전":{p:96,y:"PPeLwhZSQ0k"},
+  "행성우주과학":{p:98,y:"yUx5HNWxSPs"},
+  "융합과학 탐구":{p:101,y:"XRVPgSFOuXc"},
+  "소프트웨어와 생활":{p:123,y:"baS9Wa0LO44"},
+  "일본 문화":{p:128,y:"0cpiP2-zQSk"},
+  "음악과 미디어":{p:113,y:"ibYM0GpglK4"},
+  "미술과 매체":{p:117,y:"ZNjwVfVRupw"},
+  "매체 의사소통":{p:43,y:"nuawyF-W1qo"},
+  "언어생활 탐구":{p:44,y:"Oi5ThE0quXs"},
+  "수학과 문화":{p:52,y:"_dS32uMM69E"},
+  "실용 통계":{p:53,y:"ntsE8jsBudM"},
+  "심화 영어 독해와 작문":{p:61,y:"KzuKZxCxyhE"},
+  "미디어 영어":{p:62,y:"2cqxzbNIDHs"},
+  "국제 관계의 이해":{p:78,y:"_m5eZXUTeCw"},
+  "인문학과 윤리":{p:77,y:"jUvaRQ45cXk"},
+  "도시의 미래 탐구":{p:72,y:"ykLmJBuUnb4"},
+  "여행지리":{p:79,y:"pM9asAyjJSM"},
+  "과학의 역사와 문화":{p:99,y:"Tfrcyc6dv-c"},
+  "기후변화와 환경생태":{p:100,y:"HDegDycz6xM"},
+  "지식 재산 일반":{p:120,y:"DjN_1hewQXI"},
+  "스페인어권 문화":{p:128,y:"hCIcazKU_CY"},
+  "심화 일본어":{p:126,y:"gAfarfixYXE"}
+};
+const PDF_FILE = "guide.pdf";   // 레포 루트의 PDF
 
 const SEMESTERS = [
   {
@@ -558,7 +723,7 @@ const SEMESTERS = [
         ["과학의 역사와 문화","sayung"],["기후변화와 환경생태","sayung"] ] },
       { subject:"기술·가정/정보", courses:[ ["지식 재산 일반","yunghap"] ] },
       { subject:"제2외국어/한문", courses:[ ["스페인어권 문화","yunghap"],["심화 일본어","jinro"] ] },
-      { subject:"예술", courses:[ ["음악콘텐츠 제작 기초","jinro"],["[변경예정]조형→조형탐구1","jinro"] ] },
+      { subject:"예술", courses:[ ["음악콘텐츠 제작 기초","jinro"],["[변경예정]조형⭢조형탐구1","jinro"] ] },
     ]
   },
 ];
@@ -612,6 +777,25 @@ function buildSpread(){
       grp.innerHTML = `<div class="gname">${g.subject}</div>`;
       g.courses.forEach(([name, t]) => {
         const ty = TYPE[t];
+        const row = document.createElement("div");
+        row.className = "course-row";
+
+        // 자료(PDF/유튜브)가 있는 과목에만 ⓘ, 없으면 정렬용 빈칸
+        const media = MEDIA[name];
+        if(media){
+          const info = document.createElement("button");
+          info.type = "button";
+          info.className = "info-ic no-print";
+          info.setAttribute("aria-label", name + " 자료 보기");
+          info.innerHTML = "i";
+          info.addEventListener("click", (e) => { e.stopPropagation(); openMediaPop(info, name); });
+          row.appendChild(info);
+        } else {
+          const sp = document.createElement("span");
+          sp.className = "info-sp";
+          row.appendChild(sp);
+        }
+
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "course";
@@ -624,7 +808,9 @@ function buildSpread(){
            <span class="nm">${name}</span>
            <span class="box">✓</span>`;
         btn.addEventListener("click", () => toggle(btn, sem.id, name));
-        grp.appendChild(btn);
+        row.appendChild(btn);
+
+        grp.appendChild(row);
       });
       col.appendChild(grp);
     });
@@ -807,6 +993,91 @@ checkOverflow();
 window.addEventListener("resize", checkOverflow);
 document.getElementById("resetBtn").addEventListener("click", resetAll);
 document.getElementById("pdfBtn").addEventListener("click", exportPDF);
+
+/* =========================================================
+   6) ⓘ 팝오버 + PDF/유튜브 모달
+   ========================================================= */
+const pop = document.getElementById("mediaPop");
+const modal = document.getElementById("mediaModal");
+const mmBody = document.getElementById("mmBody");
+const mmTitle = document.getElementById("mmTitle");
+const mmExt = document.getElementById("mmExt");
+let popName = null;
+
+// ⓘ 클릭 → ⓘ를 가리며 같은 높이로 팝오버 표시
+function openMediaPop(anchor, name){
+  const m = MEDIA[name];
+  if(!m) return;
+  popName = name;
+  const r = anchor.getBoundingClientRect();
+  pop.querySelector('[data-kind="pdf"]').style.display = m.p ? "" : "none";
+  pop.querySelector('[data-kind="yt"]').style.display  = m.y ? "" : "none";
+  pop.hidden = false;
+  // ⓘ 위에 겹쳐서, 같은 세로 중심으로 배치
+  const popH = pop.offsetHeight;
+  let left = r.left - 3;
+  let top  = r.top + r.height/2 - popH/2;
+  left = Math.max(6, Math.min(left, window.innerWidth - pop.offsetWidth - 6));
+  top  = Math.max(6, Math.min(top, window.innerHeight - popH - 6));
+  pop.style.left = left + "px";
+  pop.style.top  = top + "px";
+}
+function closeMediaPop(){ pop.hidden = true; popName = null; }
+
+pop.querySelectorAll(".mp-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    const name = popName, m = MEDIA[name];
+    closeMediaPop();
+    if(!m) return;
+    if(b.dataset.kind === "pdf") openPdf(name, m.p);
+    else openYt(name, m.y);
+  });
+});
+
+// PDF 모달 — 공식 pdf.js 뷰어(pdfviewer.html)를 iframe으로 임베드
+function openPdf(name, page){
+  mmTitle.textContent = name + " · 과목 안내(PDF)";
+  mmExt.hidden = false;
+  mmExt.href = PDF_FILE + "#page=" + page;
+  mmBody.className = "mm-body";
+  mmBody.innerHTML =
+    `<iframe src="pdfviewer.html?file=${encodeURIComponent(PDF_FILE)}&page=${page}" title="${name} PDF"></iframe>`;
+  showModal();
+}
+
+// 유튜브 모달 — 임베드 + '유튜브에서 열기' 폴백
+function openYt(name, id){
+  mmTitle.textContent = name + " · 과목 안내(영상)";
+  mmExt.hidden = false;
+  mmExt.href = "https://www.youtube.com/watch?v=" + id;
+  mmExt.textContent = "유튜브에서 열기 ↗";
+  mmBody.className = "mm-body yt";
+  mmBody.innerHTML =
+    `<iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0"
+       title="${name} 영상" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+       allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  showModal();
+}
+
+function showModal(){ modal.hidden = false; document.body.style.overflow = "hidden"; }
+function closeModal(){
+  modal.hidden = true;
+  mmBody.innerHTML = "";          // iframe 정리(영상 정지)
+  mmExt.textContent = "새 탭에서 열기 ↗";
+  document.body.style.overflow = "";
+}
+
+document.getElementById("mmClose").addEventListener("click", closeModal);
+modal.querySelector(".mm-backdrop").addEventListener("click", closeModal);
+document.addEventListener("keydown", e => { if(e.key === "Escape"){ closeModal(); closeMediaPop(); } });
+
+// 팝오버: 바깥 클릭/스크롤/리사이즈 시 닫기
+document.addEventListener("click", e => {
+  if(pop.hidden) return;
+  if(!pop.contains(e.target) && !e.target.closest(".info-ic")) closeMediaPop();
+});
+window.addEventListener("scroll", closeMediaPop, true);
+window.addEventListener("resize", closeMediaPop);
 </script>
 </body>
 </html>

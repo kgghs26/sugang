@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+<title>과목 안내 PDF</title>
+
+<!-- 공식 pdf.js 뷰어 컴포넌트 (v3.11.174, UMD - GitHub Pages MIME 안전) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.css" />
+<style>
+  :root{ --bar:#1c2b46; }
+  html,body{ margin:0; height:100%; background:#33373d; font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif; }
+  /* 상단 미니 툴바 */
+  #bar{
+    position:absolute; top:0; left:0; right:0; height:42px; z-index:5;
+    display:flex; align-items:center; gap:6px; padding:0 10px;
+    background:var(--bar); color:#fff;
+  }
+  #bar .sp{ flex:1 1 auto; }
+  #bar button{
+    height:28px; min-width:30px; padding:0 9px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.22); border-radius:7px;
+    background:rgba(255,255,255,.12); color:#fff; font-size:14px; font-weight:700;
+  }
+  #bar button:hover{ background:rgba(255,255,255,.24); }
+  #bar .pg{ font-size:12.5px; color:#cdd6e6; font-variant-numeric:tabular-nums; }
+  #scale{ font-size:12px; min-width:48px; text-align:center; color:#cdd6e6; }
+
+  /* 뷰어 영역 */
+  #viewerContainer{
+    position:absolute; top:42px; left:0; right:0; bottom:0;
+    overflow:auto; background:#33373d;
+  }
+  #viewer{ }
+  .pdfViewer .page{ margin:10px auto; border:none; box-shadow:0 6px 18px -8px rgba(0,0,0,.6); }
+
+  #msg{
+    position:absolute; inset:42px 0 0 0; display:none; place-items:center; text-align:center;
+    color:#dfe4ee; font-size:14px; padding:24px;
+  }
+  #msg a{ color:#9ec1ff; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <button id="zoomOut" title="축소" aria-label="축소">−</button>
+    <span id="scale">—</span>
+    <button id="zoomIn" title="확대" aria-label="확대">+</button>
+    <button id="fitW" title="폭 맞춤">폭 맞춤</button>
+    <span class="sp"></span>
+    <span class="pg" id="pageInfo"></span>
+  </div>
+
+  <div id="viewerContainer"><div id="viewer" class="pdfViewer"></div></div>
+  <div id="msg"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.js"></script>
+  <script>
+  (function(){
+    const PARAMS = new URLSearchParams(location.search);
+    const FILE = PARAMS.get("file") || "guide.pdf";
+    const PAGE = parseInt(PARAMS.get("page") || "1", 10);
+    const CDN = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/";
+
+    const msg = document.getElementById("msg");
+    function showMsg(html){ msg.innerHTML = html; msg.style.display = "grid"; }
+
+    if(!window.pdfjsLib || !window.pdfjsViewer){
+      showMsg("뷰어를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로고침하거나 <a href='"+FILE+"#page="+PAGE+"' target='_blank' rel='noopener'>PDF를 새 탭에서 여세요</a>.");
+      return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "build/pdf.worker.min.js";
+
+    const container = document.getElementById("viewerContainer");
+    const eventBus = new pdfjsViewer.EventBus();
+    const linkService = new pdfjsViewer.PDFLinkService({ eventBus });
+    const pdfViewer = new pdfjsViewer.PDFViewer({ container, eventBus, linkService, textLayerMode: 1 });
+    linkService.setViewer(pdfViewer);
+
+    const scaleLabel = document.getElementById("scale");
+    const pageInfo = document.getElementById("pageInfo");
+
+    eventBus.on("pagesinit", () => {
+      pdfViewer.currentScaleValue = "page-width";  // 폭 맞춤 + 세로 스크롤
+      if(PAGE > 1) pdfViewer.currentPageNumber = Math.min(PAGE, pdfViewer.pagesCount);
+      updateLabels();
+    });
+    eventBus.on("scalechanging", updateLabels);
+    eventBus.on("pagechanging", updateLabels);
+    function updateLabels(){
+      scaleLabel.textContent = Math.round((pdfViewer.currentScale || 1) * 100) + "%";
+      pageInfo.textContent = pdfViewer.currentPageNumber + " / " + (pdfViewer.pagesCount || "—");
+    }
+
+    document.getElementById("zoomIn").onclick  = () => { pdfViewer.currentScale = Math.min((pdfViewer.currentScale||1)*1.2, 5); };
+    document.getElementById("zoomOut").onclick = () => { pdfViewer.currentScale = Math.max((pdfViewer.currentScale||1)/1.2, 0.25); };
+    document.getElementById("fitW").onclick    = () => { pdfViewer.currentScaleValue = "page-width"; };
+
+    pdfjsLib.getDocument({
+      url: FILE,
+      cMapUrl: CDN + "cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: CDN + "standard_fonts/",
+    }).promise.then(doc => {
+      pdfViewer.setDocument(doc);
+      linkService.setDocument(doc, null);
+    }).catch(err => {
+      console.error(err);
+      showMsg("PDF를 불러오지 못했습니다. <a href='"+FILE+"#page="+PAGE+"' target='_blank' rel='noopener'>PDF를 새 탭에서 여세요</a>.");
+    });
+  })();
+  </script>
+</body>
+</html>

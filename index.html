@@ -645,8 +645,8 @@
 
 <div class="toolbar no-print">
   <button class="btn btn-ghost" id="resetBtn" type="button">선택 초기화</button>
-  <button class="btn btn-save" id="saveBtn" type="button" style="display:none">임시저장</button>
   <button class="btn btn-ghost" id="loadBtn" type="button" style="display:none">불러오기</button>
+  <button class="btn btn-save" id="saveBtn" type="button" style="display:none">임시저장</button>
   <button class="btn btn-primary" id="pdfBtn" type="button">PDF로 저장</button>
 </div>
 
@@ -1031,20 +1031,58 @@ function setToday(){
 }
 
 async function exportPDF(){
+  // 1. 조건 충족 여부 확인 (로그인 여부와 상관없이 필수 조건 검사)
+  const semCount = {};
+  SEMESTERS.forEach(s => semCount[s.id] = 0);
+  const cat = { KME:0, TECH:0, LANG:0, ART:0 };
+  document.querySelectorAll('.course[aria-pressed="true"]').forEach(btn => {
+    semCount[btn.dataset.sem]++;
+    cat[btn.dataset.cat]++;
+  });
+  
+  const allSemOk = SEMESTERS.every(s => semCount[s.id] === s.need);
+  const kmeOk = cat.KME <= 8;
+  const tlOk  = (cat.TECH + cat.LANG) >= 4;
+  const artOk = cat.ART >= 2;
+  
+  if(!allSemOk || !kmeOk || !tlOk || !artOk){
+    alert("모든 조건(학기별 과목 수, 교과군 필수요건)을 충족해야 PDF로 저장할 수 있습니다.");
+    return;
+  }
+
   const btn = document.getElementById("pdfBtn");
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = "PDF 만드는 중…";
 
-  // input 값이 캡처에 보이도록 속성으로 고정
-  const whoId   = document.getElementById("whoId");
-  const whoName = document.getElementById("whoName");
-  whoId.setAttribute("value", whoId.value);
-  whoName.setAttribute("value", whoName.value);
+  // 2. 로그인 여부에 따른 학번/이름 데이터 추출 분기 처리 (에러 방지)
+  let sidVal = "";
+  let nameVal = "";
+
+  if (authToken && authUser) {
+    // 로그인 상태일 때는 서버 세션 정보 활용
+    sidVal = authUser.sid || "";
+    nameVal = authUser.name || "";
+  } else {
+    // 비로그인 상태일 때는 입력창(데스크톱/모바일 전체 체크)에 값이 있으면 활용
+    const loginSid = document.getElementById("loginSid");
+    const loginName = document.getElementById("loginName");
+    const mLoginSid = document.getElementById("mLoginSid");
+    const mLoginName = document.getElementById("mLoginName");
+
+    sidVal = (loginSid && loginSid.value) || (mLoginSid && mLoginSid.value) || "";
+    nameVal = (loginName && loginName.value) || (mLoginName && mLoginName.value) || "";
+  }
+
+  // 3. 입력 폼의 상태 보존 처리 (존재할 때만 안전하게 실행)
+  const loginSid = document.getElementById("loginSid");
+  const loginName = document.getElementById("loginName");
+  if (loginSid && loginSid.value) loginSid.setAttribute("value", loginSid.value);
+  if (loginName && loginName.value) loginName.setAttribute("value", loginName.value);
 
   const target = document.getElementById("capture");
-  const FORCE_W = 1320;                 // 데스크톱 펼침면 기준 폭
+  const FORCE_W = 1320;                 
   const prevWidth = target.style.width;
-  target.style.width = FORCE_W + "px";  // 모바일이어도 데스크톱 레이아웃으로 캡처
+  target.style.width = FORCE_W + "px";  
   document.body.classList.add("capturing");
 
   try{
@@ -1058,37 +1096,37 @@ async function exportPDF(){
     const imgData = canvas.toDataURL("image/jpeg", 0.95);
     const { jsPDF } = window.jspdf;
 
-    // 인쇄용 A4(세로) 한 장에 비율 유지하며 맞춰 배치, 여백은 좁게
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-    const pageW = pdf.internal.pageSize.getWidth();   // ≈ 595pt
-    const pageH = pdf.internal.pageSize.getHeight();  // ≈ 842pt
-    const margin = 14;                                 // 좁은 여백
+    const pageW = pdf.internal.pageSize.getWidth();   
+    const pageH = pdf.internal.pageSize.getHeight();  
+    const margin = 14;                                 
     const availW = pageW - margin * 2;
     const availH = pageH - margin * 2;
 
     const ratio = canvas.width / canvas.height;
-    let drawW = availW;                  // 폭을 꽉 채워 최대한 크게
+    let drawW = availW;                  
     let drawH = drawW / ratio;
-    if(drawH > availH){ drawH = availH; drawW = drawH * ratio; } // 세로 넘치면 높이 기준
-    const x = (pageW - drawW) / 2;       // 가로 가운데
-    const y = margin;                    // 상단 정렬
+    if(drawH > availH){ drawH = availH; drawW = drawH * ratio; } 
+    const x = (pageW - drawW) / 2;       
+    const y = margin;                    
 
     pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
-    // 파일명: [학번이름]선택과목 로드맵_YYMMDD
-    const idName = ((whoId.value || "") + (whoName.value || "")).trim().replace(/\s+/g, "");
+    
+    // 4. 파일명 동적 생성 (정보가 없으면 기본 명칭으로 저장됨)
+    const idName = (sidVal + nameVal).trim().replace(/\s+/g, "");
     const d = new Date();
     const yymmdd = String(d.getFullYear()).slice(2)
                  + String(d.getMonth() + 1).padStart(2, "0")
                  + String(d.getDate()).padStart(2, "0");
     const fname = `${idName ? "[" + idName + "]" : ""}선택과목 로드맵_${yymmdd}`
-                    .replace(/[\\/:*?"<>|]/g, "_");  // 파일명 사용 불가 문자만 치환
+                    .replace(/[\\/:*?"<>|]/g, "_");  
     pdf.save(fname + ".pdf");
   } catch(e){
     alert("PDF 생성 중 문제가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.");
     console.error(e);
   } finally{
     document.body.classList.remove("capturing");
-    target.style.width = prevWidth;     // 임시 폭 원복
+    target.style.width = prevWidth;     
     btn.disabled = false; btn.textContent = orig;
   }
 }

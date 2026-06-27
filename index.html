@@ -926,7 +926,7 @@
         <div class="eyebrow">
           <span>경기여자고등학교 · 나의 진로설계와 수강신청</span>
         </div>
-        <h1><span class="yr">2026</span> 수강신청 로드맵</h1>
+        <h1><span class="yr">2026</span> 수강신청 로드맵 <button type="button" id="pwHelpOpen" style="background:none;border:none;padding:0;font-family:var(--font-body);font-size:12px;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-weight:500;vertical-align:middle;">비밀번호 안내</button></h1>
       </div>
       <div class="ident">
         <!-- 로그인 후 상태 -->
@@ -993,7 +993,7 @@
     </div>
 
     <p class="note">
-      이 페이지는 <b>가상의 수강신청 연습페이지</b>입니다. 실제 수강신청은 <b>리로스쿨</b>에서 진행합니다.<br>
+      이 페이지는 <b>가상의 수강신청 연습페이지</b>입니다. 실제 수강신청은 <b>리로스쿨</b>에서 학년단위로 진행됩니다.<br>
       <b>ⓘ</b> 아이콘을 누르면 각 과목에 대한 자세한 정보(PDF·영상)를 볼 수 있습니다.
     </p>
 
@@ -1144,6 +1144,19 @@
       <button class="dupe-opt secondary" id="dupeRename" type="button">이름 변경</button>
       <button class="dupe-opt cancel" id="dupeCancel" type="button">취소</button>
     </div>
+  </div>
+</div>
+
+<!-- 비밀번호 안내 모달 -->
+<div class="login-modal no-print" id="pwHelpModal">
+  <div class="lm-back" id="pwHelpModalBack"></div>
+  <div class="lm-panel">
+    <button class="lm-x" id="pwHelpModalClose" type="button">✕</button>
+    <div class="lm-title">비밀번호 안내</div>
+    <ul style="margin:4px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink);line-height:1.8;display:flex;flex-direction:column;gap:10px;list-style:disc;">
+      <li>비밀번호는 해당하는 학번, 이름으로 <b>처음 로그인할 때 사용한 비밀번호</b>로 설정됩니다.</li>
+      <li>비밀번호 재설정이 필요한 경우, <b>1교무실 교사 정솔 (010-6349-7532)</b>에게 문자 또는 직접 방문하세요. 해당 학생의 번호가 아니면 문자를 통한 리셋이 제한될 수 있습니다.</li>
+    </ul>
   </div>
 </div>
 
@@ -1999,6 +2012,14 @@ function closeLoadModal() {
 document.getElementById("loadModalClose").addEventListener("click", closeLoadModal);
 document.getElementById("loadModalBack").addEventListener("click", closeLoadModal);
 
+// 비밀번호 안내 모달
+const pwHelpModal = document.getElementById("pwHelpModal");
+function openPwHelp(){ pwHelpModal.classList.add("on"); document.body.classList.add("modal-open"); }
+function closePwHelp(){ pwHelpModal.classList.remove("on"); document.body.classList.remove("modal-open"); }
+document.getElementById("pwHelpOpen").addEventListener("click", openPwHelp);
+document.getElementById("pwHelpModalClose").addEventListener("click", closePwHelp);
+document.getElementById("pwHelpModalBack").addEventListener("click", closePwHelp);
+
 // 로드맵 목록 서버 요청 및 인터페이스 빌드
 async function fetchAndRenderRoadmaps() {
   const listContainer = document.getElementById("loadModalList");
@@ -2171,7 +2192,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     return;
   }
 
-  if(!confirm("본 제출은 가상의 수강신청 연습 및 상담용이며 실제 수강신청은 리로스쿨에서 진행됩니다. 제출하시겠습니까?")) return;
+  if(!confirm("본 제출은 가상의 수강신청 연습 및 상담용이며 실제 수강신청은 리로스쿨에서 진행됩니다. 기존 제출은 현재 제출로 덮어씌워집니다. 제출하시겠습니까?")) return;
 
   try{
     const res = await fetch(API + "/submit", {

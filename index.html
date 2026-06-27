@@ -1266,7 +1266,15 @@ function buildSpread(){
         xBtn.title = "이 과목 제외";
         xBtn.setAttribute("aria-label", name + " 제외");
         xBtn.innerHTML = "✕";
-        xBtn.addEventListener("click", (e) => { e.stopPropagation(); excludeCourse(sem.id, name); });
+        xBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          // 선택(체크)된 상태면 제외 불가
+          if(btn.getAttribute("aria-pressed") === "true"){
+            alert("체크박스 해제 후 제외 가능합니다.");
+            return;
+          }
+          excludeCourse(sem.id, name);
+        });
         row.appendChild(xBtn);
 
         grp.appendChild(row);

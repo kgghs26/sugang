@@ -15,7 +15,9 @@ export default async function handler(req, res){
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();  // preflight 응답
   // =====================
-  if(req.method !== "GET")
+  
+  // GET과 DELETE 이외의 메서드 차단
+  if(req.method !== "GET" && req.method !== "DELETE")
     return res.status(405).json({ error: "Method not allowed" });
 
   let user;
@@ -28,8 +30,18 @@ export default async function handler(req, res){
 
   await client.connect();
   const col = client.db("sugang").collection("roadmaps");
-  const rd = await col.findOne({ _id: new ObjectId(id), sid: user.sid });
 
-  if(!rd) return res.status(404).json({ error: "로드맵을 찾을 수 없습니다." });
-  return res.status(200).json(rd);
+  // 데이터 불러오기 (GET)
+  if (req.method === "GET") {
+    const rd = await col.findOne({ _id: new ObjectId(id), sid: user.sid });
+    if(!rd) return res.status(404).json({ error: "로드맵을 찾을 수 없습니다." });
+    return res.status(200).json(rd);
+  }
+
+  // 데이터 삭제 (DELETE)
+  if (req.method === "DELETE") {
+    const result = await col.deleteOne({ _id: new ObjectId(id), sid: user.sid });
+    if (result.deletedCount === 0) return res.status(404).json({ error: "삭제할 로드맵을 찾을 수 없습니다." });
+    return res.status(200).json({ ok: true });
+  }
 }

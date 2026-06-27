@@ -43,13 +43,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // 삭제
-  if (req.method === "DELETE") {
-    const { id } = req.query;
-    const { ObjectId } = await import("mongodb");
-    await col.deleteOne({ _id: new ObjectId(id), sid: user.sid });
-    return res.status(200).json({ ok: true });
-  }
 
   return res.status(405).json({ error: "Method not allowed" });
 }

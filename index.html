@@ -492,11 +492,11 @@
   
   .rm-del-btn {
     font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
-    color: var(--alert); background: transparent; border: 1.5px solid transparent; border-radius: 6px;
-    padding: 4px 9px; cursor: pointer; transition: background .12s;
+    color: var(--alert); background: transparent; border: 1.5px solid var(--alert); border-radius: 6px;
+    padding: 4px 10px; /* 불러오기 버튼과 동일한 여백 적용 */
+    cursor: pointer; transition: background .12s, color .12s;
   }
-  .rm-del-btn:hover:not(:disabled) { background: var(--alert-bg); }
-  
+  .rm-del-btn:hover:not(:disabled) { background: var(--alert); color: #fff; }
   /* 버튼 비활성화 상태 */
   .rm-load-btn:disabled, .rm-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   

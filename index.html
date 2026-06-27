@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>2026 경기여고 수강신청 로드맵</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>수강신청 로드맵: 2026 경기여고</title>
 
 <!-- 폰트: 본문/UI = Pretendard, 디스플레이 제목 = Nanum Myeongjo -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1057,8 +1058,7 @@
           <option value="s32">3학년 2학기</option>
         </select>
         <span class="ap-spacer"></span>
-        <button class="btn-mini" id="ovCsvSem" type="button">이 학기 CSV</button>
-        <button class="btn-mini primary" id="ovCsvAll" type="button">전체 학기 CSV</button>
+        <button class="btn-mini" id="ovCsvSem" type="button">교차표 CSV</button>
       </div>
       <div class="ov-stats" id="ovStats"></div>
       <div class="ov-courses" id="ovCourses"></div>
@@ -1072,7 +1072,7 @@
         <select id="clsSel"></select>
         <span class="ap-legend">
           <i class="cs-dot complete"></i>조건충족
-          <i class="cs-dot draft"></i>임시저장(미충족)
+          <i class="cs-dot draft"></i>임시저장
           <i class="cs-dot none"></i>미제출
         </span>
       </div>
@@ -1099,7 +1099,7 @@
 <div class="toolbar no-print">
   <button class="btn btn-ghost" id="resetBtn" type="button">
     <span class="d-txt">전체초기화</span>
-    <span class="m-txt" style="letter-spacing:-0.05em;">전체<br>초기화</span>
+    <span class="m-txt" style="letter-spacing:-0.05em;">초기화</span>
   </button>
   <button class="btn btn-ghost" id="loadBtn" type="button" style="display:none">
     <span class="d-txt">불러오기</span>
@@ -1877,7 +1877,7 @@ function applyAuthState(){
   if(loggedIn && authUser){
     const who = isAdmin ? "관리자" : `${authUser.sid} ${authUser.name}`;
     document.getElementById("userGreeting").innerHTML =
-      `<b>${who}</b>&nbsp;<span class="greeting">으로 접속 중</span>`;
+      `<b>${who}</b>&nbsp;<span class="greeting"> 접속 중</span>`;
   }
   if(isAdmin) initAdminPanel();
 }

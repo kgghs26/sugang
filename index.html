@@ -2326,7 +2326,9 @@ async function loadClass(){
     grid.innerHTML = "";
     d.students.forEach(s => {
       const item = document.createElement("div");
-      const clickable = (s.status === "complete" || s.status === "draft");
+      // 제출 완료(complete)만 클릭해서 내역을 볼 수 있음
+      // draft(임시저장)는 학생이 아직 공개 의사를 밝히지 않은 상태이므로 담임에게 비공개
+      const clickable = s.status === "complete";
       item.className = `cs-item ${s.status}` + (clickable ? " clickable" : "");
       item.innerHTML = `<span class="dot"></span><span class="who"><span class="sid">${s.sid}</span><span class="nm">${s.name}</span></span>`;
       if(clickable) item.addEventListener("click", () => viewStudent(s.sid, s.name));

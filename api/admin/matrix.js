@@ -44,33 +44,27 @@ export default async function handler(req, res){
   if (!isAdmin && !isTeacher)
     return res.status(403).json({ error: "권한이 없습니다." });
 
-  // 담임(teacher) 권한 제한:
-  //  - 담임 학번(user.sid)이 곧 담당 학급 코드(101~113)이며,
-  //    학생 sid 앞 3자리가 학급 코드이므로 "본인 학번 === cls" 인 것만 허용한다.
-  //  - 전체 현황(overview)·CSV 다운로드 등 학교 전체 데이터는 차단한다.
-  //  - 프론트에서 가려도 API를 직접 호출하면 뚫리므로, 반드시 서버에서 막아야 한다.
+  // 담임(teacher) 권한 제한
   if (isTeacher) {
     const tView = req.query.view || "overview";
     if (req.query.download) {
       return res.status(403).json({ error: "담당 학급 현황만 조회할 수 있습니다." });
     } else if (tView === "class") {
-      // 학급별 현황: 본인 반(cls === 본인 학번)만 허용
       if (req.query.cls !== user.sid)
         return res.status(403).json({ error: "담당 학급만 조회할 수 있습니다." });
     } else if (tView === "student") {
-      // 학생 상세: 본인 반 학생(sid 앞 3자리 === 본인 학번)만 허용
       if (String(req.query.sid || "").slice(0, 3) !== user.sid)
         return res.status(403).json({ error: "담당 학급 학생만 조회할 수 있습니다." });
     } else {
-      // overview 등 그 외 모든 요청 차단
       return res.status(403).json({ error: "담당 학급 현황만 조회할 수 있습니다." });
     }
   }
 
   await client.connect();
-  const db = client.db("sugang");
+  const db     = client.db("sugang");
   const subCol = db.collection("submissions");
   const stuCol = db.collection("students");
+  const rdCol  = db.collection("roadmaps");
 
   const view = req.query.view || "overview";
 
@@ -84,66 +78,87 @@ export default async function handler(req, res){
 
   // ---------- 학급별 현황 ----------
   if (view === "class") {
-    const cls = req.query.cls;  // 예: "101"
+    const cls = req.query.cls;
     if (!cls) return res.status(400).json({ error: "학급(cls)을 지정하세요." });
 
-    // ① 학생 명단 (해당 반만)
-    const roster = await stuCol
-      .find({ role: "student" }, { projection: { sid: 1, name: 1 } })
-      .toArray();
-    const inClass = roster
-      .filter(s => String(s.sid).slice(0, 3) === cls && !isTest(s.sid))
-      .sort((a, b) => String(a.sid).localeCompare(String(b.sid)));
+    // [개선 1] 전교생 로드 후 JS 필터 → DB 레벨 정규식 필터
+    //          students.sid 에 인덱스가 있으면 컬렉션 스캔 없이 바로 조회됨
+    // [개선 2] submissions·roadmaps 순차 조회 → Promise.all 병렬 조회
+    // [개선 3] submissions·roadmaps 모두 sid만 projection (도큐먼트 전체 전송 불필요)
+    const clsRegex = { $regex: `^${cls}` };
+    const [inClass, subDocs, rdDocs] = await Promise.all([
+      // ① 해당 반 학생 명단 — DB 필터 + 정렬을 DB에서 처리
+      stuCol
+        .find(
+          { role: "student", sid: clsRegex },
+          { projection: { sid: 1, name: 1, _id: 0 } }
+        )
+        .sort({ sid: 1 })
+        .toArray(),
 
-    // ② 제출 현황 (submissions) — cls 필터로 해당 반만 조회
-    const subs = await subCol.find({ cls }).toArray();
-    const subMap = {};
-    subs.forEach(s => { if (!isTest(s.sid)) subMap[s.sid] = s; });
+      // ② 해당 반 제출 현황 — sid만 가져오면 충분 (status 판정에 sid만 필요)
+      subCol
+        .find(
+          { cls },
+          { projection: { sid: 1, _id: 0 } }
+        )
+        .toArray(),
 
-    // ③ 임시저장 현황 (roadmaps) — 해당 반 학번(101XX~113XX) 범위만 조회
-    //    sid 정규식으로 DB 레벨에서 필터링해 서버 부하 최소화
-    const rdCol = db.collection("roadmaps");
-    const rdDocs = await rdCol
-      .find(
-        { sid: { $regex: `^${cls}` } },       // 예: ^101 → 10101~10135...
-        { projection: { sid: 1, _id: 0 } }    // sid만 가져오면 충분
-      )
-      .toArray();
-    // 학번 → 임시저장 존재 여부 Map
-    const rdSet = new Set(rdDocs.map(r => r.sid));
+      // ③ 해당 반 임시저장 현황 — sid만 가져오면 충분
+      rdCol
+        .find(
+          { sid: clsRegex },
+          { projection: { sid: 1, _id: 0 } }
+        )
+        .toArray(),
+    ]);
 
-    // ④ status 판정
-    //    complete = submissions 있음 (제출 = 무조건 조건충족)
-    //    draft    = roadmaps 있음 + submissions 없음 (임시저장만)
-    //    none     = 둘 다 없음
-    const students = inClass.map(s => {
-      let status = "none";
-      if (subMap[s.sid])      status = "complete";
-      else if (rdSet.has(s.sid)) status = "draft";
-      return { sid: s.sid, name: s.name, status };
-    });
+    // 테스트반 제외 후 Set으로 O(1) 조회
+    const subSet = new Set(subDocs.filter(s => !isTest(s.sid)).map(s => s.sid));
+    const rdSet  = new Set(rdDocs.filter(s => !isTest(s.sid)).map(s => s.sid));
+
+    // status 판정
+    //   complete = submissions 있음 (제출 = 무조건 조건충족)
+    //   draft    = roadmaps 있음 + submissions 없음 (임시저장만, 담임에게 내용 비공개)
+    //   none     = 둘 다 없음
+    const students = inClass
+      .filter(s => !isTest(s.sid))
+      .map(s => {
+        let status = "none";
+        if (subSet.has(s.sid))     status = "complete";
+        else if (rdSet.has(s.sid)) status = "draft";
+        return { sid: s.sid, name: s.name, status };
+      });
 
     return res.status(200).json({ cls, students });
   }
 
   // ---------- 전체 현황 + CSV ----------
-  const allStudents = await stuCol
-    .find({ role: "student" }, { projection: { sid: 1 } }).toArray();
-  const totalStudents = allStudents.filter(s => !isTest(s.sid)).length;
+  // [개선 4] totalStudents 카운트·submissions 조회 순차 → Promise.all 병렬
+  // [개선 5] totalStudents는 countDocuments로 단순 카운트 (전체 도큐먼트 로드 불필요)
+  // [개선 6] submissions: CSV는 sid+name+selections 필요, overview는 sid+selections만 필요
+  //          → CSV 여부에 따라 projection 분기
+  const needName   = !!req.query.download;  // CSV 시에만 name 필요
+  const subProj    = needName
+    ? { sid: 1, name: 1, selections: 1, _id: 0 }
+    : { sid: 1, selections: 1, _id: 0 };
 
-  const subs = (await subCol.find({}).toArray()).filter(s => !isTest(s.sid));
+  const [totalStudents, allSubs] = await Promise.all([
+    // ① 전교생 수 — 도큐먼트 로드 없이 카운트만
+    stuCol.countDocuments({ role: "student", sid: { $not: { $regex: `^${TEST_CLASS}` } } }),
+
+    // ② 제출 현황 — 테스트반 제외 필터를 DB 레벨에서 처리
+    subCol
+      .find(
+        { sid: { $not: { $regex: `^${TEST_CLASS}` } } },
+        { projection: subProj }
+      )
+      .toArray(),
+  ]);
+
+  const subs      = allSubs;  // 이미 테스트반 제외됨
   const submitted = subs.length;
-
-  const semester = SEM_ORDER.includes(req.query.semester) ? req.query.semester : "s21";
-
-  const courses = SEM_COURSES[semester];
-  const courseCount = {};
-  courses.forEach(c => courseCount[c] = 0);
-  subs.forEach(sub => {
-    (sub.selections?.[semester] || []).forEach(c => {
-      if (c in courseCount) courseCount[c]++;
-    });
-  });
+  const semester  = SEM_ORDER.includes(req.query.semester) ? req.query.semester : "s21";
 
   // CSV 다운로드
   if (req.query.download) {
@@ -168,6 +183,16 @@ export default async function handler(req, res){
     res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
     return res.status(200).send("\uFEFF" + csv);
   }
+
+  // overview 응답
+  const courses     = SEM_COURSES[semester];
+  const courseCount = {};
+  courses.forEach(c => courseCount[c] = 0);
+  subs.forEach(sub => {
+    (sub.selections?.[semester] || []).forEach(c => {
+      if (c in courseCount) courseCount[c]++;
+    });
+  });
 
   return res.status(200).json({
     semester,

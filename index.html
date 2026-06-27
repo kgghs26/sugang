@@ -471,6 +471,23 @@
   /* 하단 고정 미니바에 가리지 않도록 전역 여백 */
   body{ padding-bottom:74px; }
 
+  /* ===== 불러오기 모달 리스트 항목 ===== */
+  .rm-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 14px; border: 1.4px solid var(--line); border-radius: 8px;
+    background: #fff; transition: border-color .12s, background .12s;
+  }
+  .rm-item:hover { border-color: var(--sel); background: var(--sel-bg); }
+  .rm-info { flex: 1 1 auto; min-width: 0; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+  .rm-name { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rm-del-btn {
+    flex: 0 0 auto; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+    color: var(--alert); background: transparent; border: none; border-radius: 6px;
+    padding: 5px 9px; cursor: pointer; transition: background .12s;
+  }
+  .rm-del-btn:hover { background: var(--alert-bg); }
+  .rm-empty { font-size: 13.5px; color: var(--ink-soft); text-align: center; padding: 20px 0; }
+
   /* ===== 반응형 =====
      960px 이하: 책 펼침면(가로 4단)을 풀고 세로로 적층.
        · 학기 테이블: 2학기씩(2열) → 680px 이하에서 1학기씩(1열)
@@ -609,6 +626,17 @@
         </div>
         <div class="lm-err" id="mLoginErr"></div>
         <button class="lm-submit" id="mLoginBtn" type="button">로그인</button>
+      </div>
+    </div>
+
+    <div class="login-modal no-print" id="loadModal">
+      <div class="lm-back" id="loadModalBack"></div>
+      <div class="lm-panel" style="width:min(440px,92vw);">
+        <button class="lm-x" id="loadModalClose" type="button">✕</button>
+        <div class="lm-title" style="margin-bottom:16px;">저장된 로드맵 목록</div>
+        <div class="login-err" id="loadModalErr" style="min-height:0; margin-bottom:8px; margin-left:0;"></div>
+        <div id="loadModalList" style="max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px;">
+          </div>
       </div>
     </div>
 
@@ -1216,7 +1244,7 @@ function closeModal(){
 
 document.getElementById("mmClose").addEventListener("click", closeModal);
 modal.querySelector(".mm-backdrop").addEventListener("click", closeModal);
-document.addEventListener("keydown", e => { if(e.key === "Escape"){ closeModal(); closeMediaPop(); } });
+document.addEventListener("keydown", e => { if(e.key === "Escape"){ closeModal(); closeMediaPop(); closeLoadModal(); } });
 document.addEventListener("click", e => {
   if(pop.hidden) return;
   if(!pop.contains(e.target) && !e.target.closest(".info-ic")) closeMediaPop();
@@ -1366,40 +1394,121 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
   } catch{ alert("서버 연결 오류"); }
 });
 
-// 불러오기
-document.getElementById("loadBtn").addEventListener("click", async () => {
-  try{
+// ===== 불러오기 모달 제어 함수 및 데이터 연동 =====
+function showLoadModal() {
+  document.getElementById("loadModal").classList.add("on");
+  document.body.style.overflow = "hidden";
+}
+
+function closeLoadModal() {
+  document.getElementById("loadModal").classList.remove("on");
+  document.body.style.overflow = "";
+  document.getElementById("loadModalList").innerHTML = "";
+  document.getElementById("loadModalErr").textContent = "";
+}
+
+// 모달 닫기 이벤트 바인딩
+document.getElementById("loadModalClose").addEventListener("click", closeLoadModal);
+document.getElementById("loadModalBack").addEventListener("click", closeLoadModal);
+
+// 로드맵 목록 서버 요청 및 인터페이스 빌드
+async function fetchAndRenderRoadmaps() {
+  const listContainer = document.getElementById("loadModalList");
+  const errEl = document.getElementById("loadModalErr");
+  listContainer.innerHTML = "";
+  errEl.textContent = "";
+
+  try {
     const res = await fetch(API + "/roadmaps", {
-      headers:{ "Authorization":"Bearer " + authToken }
+      headers: { "Authorization": "Bearer " + authToken }
     });
     const list = await res.json();
-    if(!list.length){ alert("저장된 로드맵이 없습니다."); return; }
+    
+    if (!res.ok) {
+      errEl.textContent = list.error || "목록을 불러오지 못했습니다.";
+      return;
+    }
 
-    // 목록 선택 (간단한 prompt — 추후 모달로 개선 가능)
-    const names = list.map((r,i) => `${i+1}. ${r.name}`).join("\n");
-    const pick = prompt(`불러올 로드맵 번호를 입력하세요:\n${names}`);
-    if(!pick) return;
-    const idx = parseInt(pick) - 1;
-    if(isNaN(idx) || !list[idx]){ alert("올바른 번호를 입력하세요."); return; }
+    if (!list.length) {
+      listContainer.innerHTML = `<div class="rm-empty">저장된 로드맵이 없습니다.</div>`;
+      return;
+    }
 
-    // 상세 데이터 가져오기
-    const res2 = await fetch(API + "/roadmaps/" + list[idx]._id, {
-      headers:{ "Authorization":"Bearer " + authToken }
+    list.forEach(rd => {
+      const item = document.createElement("div");
+      item.className = "rm-item";
+
+      // 로드맵 정보 클릭 시 불러오기 동작 실행
+      const info = document.createElement("div");
+      info.className = "rm-info";
+      info.innerHTML = `<div class="rm-name">${rd.name}</div>`;
+      info.addEventListener("click", () => loadRoadmapData(rd._id, rd.name));
+
+      // 데이터 제거 전용 버튼
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "rm-del-btn";
+      delBtn.textContent = "삭제";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // 불러오기 핸들러 트리거 차단
+        deleteRoadmapData(rd._id, rd.name);
+      });
+
+      item.appendChild(info);
+      item.appendChild(delBtn);
+      listContainer.appendChild(item);
     });
-    const rd = await res2.json();
-    if(!rd.selections){ alert("데이터를 불러올 수 없습니다."); return; }
+  } catch {
+    errEl.textContent = "서버 연결 오류가 발생했습니다.";
+  }
+}
 
-    // 초기화 후 반영
+// 선택한 파일 데이터 화면 로드
+async function loadRoadmapData(id, name) {
+  try {
+    const res = await fetch(API + "/roadmaps/" + id, {
+      headers: { "Authorization": "Bearer " + authToken }
+    });
+    const rd = await res.json();
+    if (!rd.selections) { alert("데이터를 불러올 수 없습니다."); return; }
+
     resetAll();
     Object.entries(rd.selections).forEach(([semId, courses]) => {
-      courses.forEach(name => {
-        const btn = document.querySelector(`.course[data-sem="${semId}"][data-name="${CSS.escape(name)}"]`);
-        if(btn){ btn.setAttribute("aria-pressed","true"); selected.add(key(semId,name)); }
+      courses.forEach(cName => {
+        const btn = document.querySelector(`.course[data-sem="${semId}"][data-name="${CSS.escape(cName)}"]`);
+        if (btn) { btn.setAttribute("aria-pressed", "true"); selected.add(key(semId, cName)); }
       });
     });
     recompute();
-    alert(`"${rd.name}" 불러오기 완료!`);
-  } catch{ alert("서버 연결 오류"); }
+    alert(`"${name}" 불러오기 완료!`);
+    closeLoadModal();
+  } catch {
+    alert("서버 연결 오류");
+  }
+}
+
+// 선택한 파일 서버에서 제거
+async function deleteRoadmapData(id, name) {
+  if (!confirm(`"${name}" 로드맵을 완전히 삭제하시겠습니까?`)) return;
+  try {
+    const res = await fetch(API + "/roadmaps/" + id, {
+      method: "DELETE",
+      headers: { "Authorization": "Bearer " + authToken }
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "삭제 실패"); return; }
+    
+    alert(`"${name}" 삭제 완료!`);
+    fetchAndRenderRoadmaps(); // 목록 갱신
+  } catch {
+    alert("서버 연결 오류");
+  }
+}
+
+// 불러오기 실행 단추 트리거
+document.getElementById("loadBtn").addEventListener("click", () => {
+  showLoadModal();
+  fetchAndRenderRoadmaps();
 });
 
 // 페이지 로드 시 세션 복원

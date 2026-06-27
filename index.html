@@ -507,7 +507,7 @@
      960px 이하: 책 펼침면(가로 4단)을 풀고 세로로 적층.
        · 학기 테이블: 2학기씩(2열) → 680px 이하에서 1학기씩(1열)
        · 버튼은 흐름 맨 아래에 배치 (미니바는 전 화면 하단 고정) */
-  @media (max-width: 960px){
+@media (max-width: 960px){
     .layout{ flex-direction:column; gap:16px; }
     .spread{
       order:1; width:100%;
@@ -516,25 +516,30 @@
     }
     .spread.scroll{ overflow:visible; }
     .spine{ display:none; }              /* 책등은 펼침면(가로)일 때만 */
+    
     .col{
       min-width:0;
-      border:1px solid var(--line-strong); border-radius:12px; overflow:hidden;
+      border:1px solid var(--line-strong); border-radius:12px; 
+      overflow:visible;                  /* [수정] sticky가 브라우저 창 기준으로 작동할 수 있도록 visible로 변경 */
       box-shadow:0 12px 30px -24px rgba(28,43,70,.45);
     }
-    .col-head{ position:static; }        /* 적층 시 헤더 겹침 방지 */
+    
+    /* [수정] 중간 크기 및 모바일 화면에서도 학기 정보 헤더가 상단에 고정되도록 변경 */
+    .col-head{ 
+      position: sticky; 
+      top: 0; 
+      z-index: 10;                       /* 교과목 버튼들 위로 올라오도록 레이어 순위 상향 */
+      border-top-left-radius: 11px;      /* overflow: visible 상태에서 카드 테두리 밖으로 배경이 깨지지 않게 라운딩 적용 */
+      border-top-right-radius: 11px; 
+      box-shadow: 0 6px 12px -4px rgba(28,43,70,.3); /* 스크롤 되어 내려갈 때 본문과의 경계를 명확하게 표현 */
+    }        
+    
     .toolbar{                            /* 버튼: 고정 해제 → 페이지 맨 아래 흐름 */
       position:static; justify-content:center; gap:12px;
       max-width:1360px; margin:0 auto; padding:4px 22px 36px;
     }
     .toolbar .btn{ flex:1 1 0; max-width:240px; justify-content:center; padding:14px 18px; }
   }
-  @media (max-width: 680px){
-    .spread{ grid-template-columns:1fr; }  /* 1학기씩 */
-  }
-  @media (prefers-reduced-motion: reduce){
-    *{ transition:none !important; }
-  }
-
   /* ===== ⓘ 팝오버 ===== */
   .media-pop{
     position:fixed; z-index:60; display:flex; align-items:center; gap:4px;

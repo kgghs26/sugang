@@ -1426,25 +1426,6 @@ function setToday(){
 }
 
 async function exportPDF(){
-  // 1. 조건 충족 여부 확인 (로그인 여부와 상관없이 필수 조건 검사)
-  const semCount = {};
-  SEMESTERS.forEach(s => semCount[s.id] = 0);
-  const cat = { KME:0, TECH:0, LANG:0, ART:0 };
-  document.querySelectorAll('.course[aria-pressed="true"]').forEach(btn => {
-    semCount[btn.dataset.sem]++;
-    cat[btn.dataset.cat]++;
-  });
-  
-  const allSemOk = SEMESTERS.every(s => semCount[s.id] === s.need);
-  const kmeOk = cat.KME <= 8;
-  const tlOk  = (cat.TECH + cat.LANG) >= 4;
-  const artOk = cat.ART >= 2;
-  
-  if(!allSemOk || !kmeOk || !tlOk || !artOk){
-    alert("모든 조건(학기별 과목 수, 교과군 필수요건)을 충족해야 PDF로 저장할 수 있습니다.");
-    return;
-  }
-
   const btn = document.getElementById("pdfMiniBtn");
   const orig = btn.innerHTML;
   btn.disabled = true; btn.textContent = "PDF 만드는 중…";

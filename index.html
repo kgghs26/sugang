@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>수강신청 로드맵: 2026 경기여고</title>
+<title>2026 경기여고 수강신청 로드맵</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
 <!-- 폰트: 본문/UI = Pretendard, 디스플레이 제목 = Nanum Myeongjo -->
@@ -931,40 +931,40 @@
   <!-- 캡처 대상 시작 -->
   <div id="capture">
 
-  <header class="masthead">
-    <div>
-      <div class="eyebrow">
-        <span>경기여자고등학교 · 나의 진로설계와 수강신청</span>
+    <header class="masthead">
+      <div>
+        <div class="eyebrow">
+          <span>경기여자고등학교 · 나의 진로설계와 수강신청 &nbsp;<span class="date" id="today"></span></span>
+        </div>
+        <h1><span class="yr">2026</span> 수강신청 로드맵</h1>
       </div>
-      <h1><span class="yr">2026</span> 수강신청 로드맵</h1>
-    </div>
-    <div class="ident">
-      <div class="user-info" id="userInfo">
-        <span id="userGreeting"></span>
-        <span style="font-size:13px; color:var(--ink-soft); font-weight:500; margin-left:8px;" id="todayArea"></span>
-        <button class="login-btn ghost" id="logoutBtn" type="button">로그아웃</button>
+      <div class="ident">
+        <!-- 로그인 후 상태 -->
+        <div class="user-info" id="userInfo">
+          <span id="userGreeting"></span>
+          <button class="login-btn ghost" id="logoutBtn" type="button">로그아웃</button>
+        </div>
+        <!-- 로그인 폼 (데스크톱·모바일 공통) -->
+        <div class="login-form-wrap" id="loginFormWrap">
+          <span class="login-field">
+            <label for="loginSid">학번</label>
+            <input id="loginSid" type="text" placeholder="10101" autocomplete="off" maxlength="10" />
+          </span>
+          <span class="sep">|</span>
+          <span class="login-field">
+            <label for="loginName">이름</label>
+            <input id="loginName" type="text" placeholder="김경기" autocomplete="off" maxlength="10" />
+          </span>
+          <span class="sep">|</span>
+          <span class="login-field">
+            <label for="loginPw">비밀번호</label>
+            <input id="loginPw" type="password" placeholder="••••" autocomplete="current-password" maxlength="20" />
+          </span>
+          <button class="login-btn" id="loginBtn" type="button">로그인</button>
+          <span class="login-err" id="loginErr"></span>
+        </div>
       </div>
-      
-      <div class="login-form-wrap" id="loginFormWrap">
-        <span class="login-field">
-          <label for="loginSid">학번</label>
-          <input id="loginSid" type="text" placeholder="10101" autocomplete="off" maxlength="10" />
-        </span>
-        <span class="sep">|</span>
-        <span class="login-field">
-          <label for="loginName">이름</label>
-          <input id="loginName" type="text" placeholder="김경기" autocomplete="off" maxlength="10" />
-        </span>
-        <span class="sep">|</span>
-        <span class="login-field">
-          <label for="loginPw">비밀번호</label>
-          <input id="loginPw" type="password" placeholder="••••" autocomplete="current-password" maxlength="20" />
-        </span>
-        <button class="login-btn" id="loginBtn" type="button">로그인</button>
-        <span class="login-err" id="loginErr"></span>
-      </div>
-    </div>
-  </header>
+    </header>
 
     <!-- PDF 저장 버튼: 전체 너비 오른쪽 정렬 -->
     <!-- 모바일 로그인 모달 -->
@@ -1002,7 +1002,7 @@
     </div>
 
     <p class="note">
-      이 페이지는 <b>가상의 수강신청 연습용</b>입니다. 실제 수강신청은 리로스쿨에서 학년 단위로 진행합니다.<br>
+      이 페이지는 <b>가상의 수강신청 연습</b>입니다. 실제 수강신청은 리로스쿨 &gt; 교육과정 &gt; 수강신청에서 <b>학년 단위</b>로 진행합니다.<br>
       <b>ⓘ</b> 아이콘을 누르면 각 과목에 대한 자세한 정보(PDF·영상)를 볼 수 있습니다.
     </p>
 
@@ -1605,11 +1605,10 @@ function resetSemester(semId){
   recompute();
 }
 
-// 날짜 표시 함수
 function setToday(){
   const d = new Date();
   const s = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
-  document.getElementById("todayArea").textContent = `(${s})`;
+  document.getElementById("today").textContent = s;
 }
 
 async function exportPDF(){
@@ -1864,28 +1863,24 @@ function tokenRole(token){
 }
 
 // 로그인 상태 UI 반영
-// 로그인 상태 변경 UI
 function applyAuthState(){
   const loggedIn = !!authToken;
   const isAdmin = loggedIn && authUser && authUser.role === "admin";
 
   document.body.classList.toggle("admin-mode", isAdmin);
-  
-  // 로그인 여부에 따른 영역 토글
   document.getElementById("userInfo").classList.toggle("on", loggedIn);
-  document.getElementById("loginFormWrap").style.display = loggedIn ? "none" : "flex"; // 항상 flex로 유지
-
-  // 관리자/학생용 버튼 분기
-  document.getElementById("saveBtn").style.display = (loggedIn && !isAdmin) ? "" : "none";
-  document.getElementById("loadBtn").style.display = (loggedIn && !isAdmin) ? "" : "none";
+  document.getElementById("loginFormWrap").style.display = loggedIn ? "none" : "";
+  // 학생용 버튼은 admin이 아닐 때만
+  document.getElementById("saveBtn").style.display   = (loggedIn && !isAdmin) ? "" : "none";
+  document.getElementById("loadBtn").style.display   = (loggedIn && !isAdmin) ? "" : "none";
   document.getElementById("submitBtn").style.display = (loggedIn && !isAdmin) ? "" : "none";
 
   if(loggedIn && authUser){
     const who = isAdmin ? "관리자" : `${authUser.sid} ${authUser.name}`;
-    document.getElementById("userGreeting").innerHTML = 
+    document.getElementById("userGreeting").innerHTML =
       `<b>${who}</b>&nbsp;<span class="greeting">으로 접속 중</span>`;
-    setToday(); // 로그인 시점에만 날짜 표시
   }
+  if(isAdmin) initAdminPanel();
 }
 
 // 로그인 요청 공통 함수

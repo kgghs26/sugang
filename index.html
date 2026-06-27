@@ -229,14 +229,6 @@
   .col-head .head-row{
     display:inline-flex; align-items:center; gap:8px; flex-wrap:nowrap;
   }
-  .col-head .gterm{
-    font-family:var(--font-disp); font-weight:800;
-    font-size:16px; letter-spacing:.01em; white-space:nowrap;
-  }
-  .col-head .pick{
-    display:inline-flex; align-items:center; gap:6px;
-    font-size:11.5px; color:#cdd6e6; white-space:nowrap;
-  }
   .sem-reset{
     position:absolute; top:8px; right:8px;
     font-family:var(--font-body); font-size:10px; font-weight:700;
@@ -249,11 +241,11 @@
   .sem-reset:active{ transform:translateY(1px); }
   .col-head .gterm{
     font-family:var(--font-disp); font-weight:800;
-    font-size:17px; letter-spacing:.01em;
+    font-size:17px; letter-spacing:.01em; white-space:nowrap;
   }
   .col-head .pick{
-    margin-top:5px; display:inline-flex; align-items:center; gap:7px;
-    font-size:12px; color:#cdd6e6;
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:12px; color:#cdd6e6; white-space:nowrap;
   }
   .col-head .count{
     font-variant-numeric:tabular-nums; font-weight:800; font-size:13px;
@@ -623,8 +615,6 @@
     background:rgba(255,255,255,.14); color:#fff; font-size:15px; line-height:1;
   }
   .mm-x:hover{ background:rgba(255,255,255,.28); }
-  .mm-body{ flex:1 1 auto; min-height:0; background:#33373d; }
-  .mm-body iframe{ width:100%; height:100%; border:none; display:block; }
 
   .mm-body.yt{ background:#000; display:grid; place-items:center; }
   .mm-body.yt iframe{ width:100%; aspect-ratio:16/9; height:auto; max-height:100%; }
@@ -664,7 +654,6 @@
     font-family:var(--font-body); font-size:14px; color:var(--ink);
     border:1.4px solid var(--line-strong); border-radius:7px; padding:6px 10px; background:#fff; cursor:pointer;
   }
-  .ap-spacer{ flex:1 1 auto; }
   .ap-fixed{ font-size:14px; font-weight:800; color:var(--ink); }
   .btn-mini{
     font-family:var(--font-body); font-size:13px; font-weight:700; cursor:pointer;
@@ -1059,8 +1048,7 @@
           <option value="s31">3학년 1학기</option>
           <option value="s32">3학년 2학기</option>
         </select>
-        <button class="btn-mini" id="ovCsvSem" type="button">이 학기 CSV</button>
-        <button class="btn-mini primary" id="ovCsvAll" type="button">전체 학기 CSV</button>
+        <button class="btn-mini primary" id="ovCsvSem" type="button">CSV 다운로드</button>
       </div>
       <div class="ov-stats" id="ovStats"></div>
       <div class="ov-courses" id="ovCourses"></div>
@@ -1598,10 +1586,10 @@ function resetSemester(semId){
       selected.delete(key(semId, b.dataset.name));
       b.setAttribute("aria-pressed","false");
     });
-  // 해당 학기 제외 항목 복원
-  excluded.forEach(k => {
-    if(k.startsWith(semId + "::")) excluded.delete(k);
-  });
+  // 해당 학기 제외 항목 복원 (Set 순회 중 삭제 방지: 스냅샷 후 삭제)
+  [...excluded]
+    .filter(k => k.startsWith(semId + "::"))
+    .forEach(k => excluded.delete(k));
   applyExcluded();
   recompute();
 }
@@ -1865,23 +1853,43 @@ function tokenRole(token){
 
 // 로그인 상태 UI 반영
 function applyAuthState(){
-  const loggedIn = !!authToken;
-  const isAdmin = loggedIn && authUser && authUser.role === "admin";
+  // 만료된 JWT면 자동 로그아웃 처리 (8h 만료 후 같은 탭 재방문 대비)
+  if(authToken){
+    try{
+      const payload = JSON.parse(atob(authToken.split(".")[1]));
+      if(payload.exp && payload.exp * 1000 < Date.now()) throw new Error("expired");
+    } catch{
+      authToken = null; authUser = null;
+      sessionStorage.removeItem("sgToken");
+      sessionStorage.removeItem("sgUser");
+    }
+  }
 
-  document.body.classList.toggle("admin-mode", isAdmin);
+  const loggedIn  = !!authToken;
+  const role      = (authUser && authUser.role) || "";
+  const isAdmin   = loggedIn && role === "admin";
+  const isTeacher = loggedIn && role === "teacher";
+  const isStaff   = isAdmin || isTeacher;   // admin 패널을 보는 모든 계정(관리자+담임)
+
+  document.body.classList.toggle("admin-mode", isStaff);
   document.getElementById("userInfo").classList.toggle("on", loggedIn);
   document.getElementById("loginFormWrap").style.display = loggedIn ? "none" : "";
-  // 학생용 버튼은 admin이 아닐 때만
-  document.getElementById("saveBtn").style.display   = (loggedIn && !isAdmin) ? "" : "none";
-  document.getElementById("loadBtn").style.display   = (loggedIn && !isAdmin) ? "" : "none";
-  document.getElementById("submitBtn").style.display = (loggedIn && !isAdmin) ? "" : "none";
+  // 학생용 버튼(임시저장/불러오기/제출)은 일반 학생일 때만 표시
+  document.getElementById("saveBtn").style.display   = (loggedIn && !isStaff) ? "" : "none";
+  document.getElementById("loadBtn").style.display   = (loggedIn && !isStaff) ? "" : "none";
+  document.getElementById("submitBtn").style.display = (loggedIn && !isStaff) ? "" : "none";
 
   if(loggedIn && authUser){
-    const who = isAdmin ? "관리자" : `${authUser.sid} ${authUser.name}`;
+    let who;
+    if(isAdmin)        who = "관리자";
+    // 담임 학번 "1XX" → 뒤 2자리가 반 번호 (101→1반, 113→13반)
+    else if(isTeacher) who = `${Number(String(authUser.sid).slice(1))}반 담임 · ${authUser.name} 선생님`;
+    else               who = `${authUser.sid} ${authUser.name}`;
     document.getElementById("userGreeting").innerHTML =
       `<b>${who}</b>&nbsp;<span class="greeting">접속 중</span>`;
   }
-  if(isAdmin) initAdminPanel();
+  // 담임이면 본인 학번(=담당 학급 코드)을 넘겨 학급별 현황만 보이도록 초기화
+  if(isStaff) initAdminPanel(isTeacher ? authUser.sid : null);
 }
 
 // 로그인 요청 공통 함수
@@ -1902,8 +1910,12 @@ async function doLogin(sid, name, pw, errEl, btnEl){
     authUser  = { sid: data.sid, name: data.name, role: tokenRole(data.token) };
     sessionStorage.setItem("sgToken", authToken);
     sessionStorage.setItem("sgUser", JSON.stringify(authUser));
-    // 입력 초기화
     applyAuthState();
+    // 로그인 입력창 비우기 (특히 비밀번호가 DOM에 남지 않도록)
+    ["loginSid","loginName","loginPw","mLoginSid","mLoginName","mLoginPw"].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = "";
+    });
   } catch{
     errEl.textContent = "서버 연결 오류";
   } finally{
@@ -1932,24 +1944,13 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   authToken = null; authUser = null;
   sessionStorage.removeItem("sgToken");
   sessionStorage.removeItem("sgUser");
-  applyAuthState();
+  location.reload();   // 로그아웃 시 새로고침: 관리자/담임 패널 상태까지 완전 초기화
 });
 
 // 임시저장
 document.getElementById("saveBtn").addEventListener("click", async () => {
-  // 조건 충족 여부 확인
-  const semCount = {};
-  SEMESTERS.forEach(s => semCount[s.id] = 0);
-  const cat = { KME:0, TECH:0, LANG:0, ART:0 };
-  document.querySelectorAll('.course[aria-pressed="true"]').forEach(btn => {
-    semCount[btn.dataset.sem]++;
-    cat[btn.dataset.cat]++;
-  });
-  const allSemOk = SEMESTERS.every(s => semCount[s.id] === s.need);
-  const kmeOk = cat.KME <= 8;
-  const tlOk  = (cat.TECH + cat.LANG) >= 4;
-  const artOk = cat.ART >= 2;
-  const isComplete = allSemOk && kmeOk && tlOk && artOk;
+  // 조건 충족 여부 + 선택 내역을 한 번에 수집 (collectState 재사용)
+  const { selections, isComplete } = collectState();
 
   // 미충족이어도 저장 가능 — 단 경고
   if(!isComplete){
@@ -1963,14 +1964,6 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
   const defaultName = `[${dateStr}]로드맵`;
   const rdName = prompt("저장할 로드맵 이름을 입력하세요:", defaultName);
   if(!rdName) return;
-
-  // selections 수집
-  const selections = {};
-  SEMESTERS.forEach(s => {
-    selections[s.id] = [];
-    document.querySelectorAll(`.course[data-sem="${s.id}"][aria-pressed="true"]`).forEach(b =>
-      selections[s.id].push(b.dataset.name));
-  });
 
   // 기존 목록 조회 → 같은 이름 있으면 옵션 모달
   let finalName = rdName;
@@ -2163,7 +2156,8 @@ document.getElementById("loadBtn").addEventListener("click", () => {
 function collectState(){
   const semCount = {};
   SEMESTERS.forEach(s => semCount[s.id] = 0);
-  const cat = { KME:0, TECH:0, LANG:0, ART:0 };
+  // catOf가 반환하는 모든 카테고리 키를 미리 0으로 초기화 (누락 시 undefined++ → NaN 방지)
+  const cat = { KME:0, SOC:0, SCI:0, TECH:0, LANG:0, ART:0, ETC:0 };
   const selections = {};
   SEMESTERS.forEach(s => selections[s.id] = []);
   document.querySelectorAll('.course[aria-pressed="true"]').forEach(btn => {
@@ -2206,9 +2200,15 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 const SEM_TITLE = { s21:"2학년 1학기", s22:"2학년 2학기", s31:"3학년 1학기", s32:"3학년 2학기" };
 let adminInited = false;
 
-function initAdminPanel(){
-  if(adminInited) return;
+function initAdminPanel(teacherCls){
+  if(adminInited){
+    // 이미 초기화된 뒤 다시 호출돼도 담임 잠금 상태는 보장
+    if(teacherCls) applyTeacherLock(teacherCls);
+    return;
+  }
   adminInited = true;
+
+  const isTeacher = !!teacherCls;
 
   // 탭 전환
   document.querySelectorAll(".atab").forEach(tab => {
@@ -2221,26 +2221,55 @@ function initAdminPanel(){
     });
   });
 
-  // 반 선택 채우기 (1~13반)
+  // 반 선택 채우기
   const clsSel = document.getElementById("clsSel");
-  for(let i = 1; i <= 13; i++){
-    const v = "1" + String(i).padStart(2, "0");   // 101 ~ 113
+  if(isTeacher){
+    // 담임: 본인 반 하나만 + 잠금
     const o = document.createElement("option");
-    o.value = v; o.textContent = i + "반";
+    o.value = teacherCls;
+    o.textContent = Number(String(teacherCls).slice(1)) + "반";  // 105 → "5반"
     clsSel.appendChild(o);
+    clsSel.value = teacherCls;
+    clsSel.disabled = true;
+  } else {
+    // 관리자: 1~13반 전체
+    for(let i = 1; i <= 13; i++){
+      const v = "1" + String(i).padStart(2, "0");   // 101 ~ 113
+      const o = document.createElement("option");
+      o.value = v; o.textContent = i + "반";
+      clsSel.appendChild(o);
+    }
   }
 
   // 이벤트
   document.getElementById("ovSem").addEventListener("change", loadOverview);
   document.getElementById("ovCsvSem").addEventListener("click", () => downloadCsv(document.getElementById("ovSem").value));
-  document.getElementById("ovCsvAll").addEventListener("click", () => downloadCsv(null));
   clsSel.addEventListener("change", loadClass);
   document.getElementById("stuModalClose").addEventListener("click", closeStuModal);
   document.getElementById("stuModalBack").addEventListener("click", closeStuModal);
 
-  // 초기 로드
-  loadOverview();
-  loadClass();
+  if(isTeacher){
+    // 담임: 전체 현황 탭/패널 차단, 학급별 현황만
+    applyTeacherLock(teacherCls);
+    loadClass();
+  } else {
+    // 관리자: 전체 현황 + 학급별 현황 모두 로드
+    loadOverview();
+    loadClass();
+  }
+}
+
+// 담임 계정 화면 잠금: 전체 현황 탭 숨기고 학급별 현황만 활성화
+function applyTeacherLock(teacherCls){
+  const ovTab = document.querySelector('.atab[data-tab="overview"]');
+  if(ovTab) ovTab.style.display = "none";
+  const clsTab = document.querySelector('.atab[data-tab="class"]');
+  document.querySelectorAll(".atab").forEach(t => t.classList.remove("on"));
+  if(clsTab) clsTab.classList.add("on");
+  document.getElementById("apOverview").hidden = true;
+  document.getElementById("apClass").hidden = false;
+  const clsSel = document.getElementById("clsSel");
+  if(clsSel){ clsSel.value = teacherCls; clsSel.disabled = true; }
 }
 
 // 전체 현황
@@ -2312,7 +2341,7 @@ async function viewStudent(sid, name){
   document.getElementById("stuModalTitle").textContent = `${sid} ${name} · 제출 내역`;
   body.innerHTML = "불러오는 중…";
   document.getElementById("stuModal").hidden = false;
-  document.body.style.overflow = "hidden";
+  lockPageBehindModal();   // mediaModal과 동일한 잠금 패턴 (iOS 스크롤 튐 방지)
   try{
     const res = await fetch(`${API}/admin/matrix?view=student&sid=${sid}`, {
       headers:{ "Authorization":"Bearer " + authToken }
@@ -2375,7 +2404,7 @@ function showDupeModal(name){
 
 function closeStuModal(){
   document.getElementById("stuModal").hidden = true;
-  document.body.style.overflow = "";
+  unlockPageBehindModal();   // viewStudent의 lockPageBehindModal과 짝 맞춤
 }
 
 // 페이지 로드 시 세션 복원

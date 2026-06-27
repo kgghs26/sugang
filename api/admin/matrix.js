@@ -39,8 +39,33 @@ export default async function handler(req, res){
   let user;
   try { user = verify(req); }
   catch { return res.status(401).json({ error: "로그인이 필요합니다." }); }
-  if (user.role !== "admin")
-    return res.status(403).json({ error: "관리자만 접근할 수 있습니다." });
+  const isAdmin   = user.role === "admin";
+  const isTeacher = user.role === "teacher";
+  if (!isAdmin && !isTeacher)
+    return res.status(403).json({ error: "권한이 없습니다." });
+
+  // 담임(teacher) 권한 제한:
+  //  - 담임 학번(user.sid)이 곧 담당 학급 코드(101~113)이며,
+  //    학생 sid 앞 3자리가 학급 코드이므로 "본인 학번 === cls" 인 것만 허용한다.
+  //  - 전체 현황(overview)·CSV 다운로드 등 학교 전체 데이터는 차단한다.
+  //  - 프론트에서 가려도 API를 직접 호출하면 뚫리므로, 반드시 서버에서 막아야 한다.
+  if (isTeacher) {
+    const tView = req.query.view || "overview";
+    if (req.query.download) {
+      return res.status(403).json({ error: "담당 학급 현황만 조회할 수 있습니다." });
+    } else if (tView === "class") {
+      // 학급별 현황: 본인 반(cls === 본인 학번)만 허용
+      if (req.query.cls !== user.sid)
+        return res.status(403).json({ error: "담당 학급만 조회할 수 있습니다." });
+    } else if (tView === "student") {
+      // 학생 상세: 본인 반 학생(sid 앞 3자리 === 본인 학번)만 허용
+      if (String(req.query.sid || "").slice(0, 3) !== user.sid)
+        return res.status(403).json({ error: "담당 학급 학생만 조회할 수 있습니다." });
+    } else {
+      // overview 등 그 외 모든 요청 차단
+      return res.status(403).json({ error: "담당 학급 현황만 조회할 수 있습니다." });
+    }
+  }
 
   await client.connect();
   const db = client.db("sugang");

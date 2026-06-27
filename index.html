@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>2026 경기여고 수강신청 로드맵</title>
 
 <!-- 폰트: 본문/UI = Pretendard, 디스플레이 제목 = Nanum Myeongjo -->
@@ -509,6 +509,14 @@
   /* 전역 여백: 미니바 및 툴바 가림 방지 */
   body{ padding-bottom:74px; }
 
+  /* 모바일에서 모달 열린 상태로 뒤 화면/전체 페이지가 움직이거나 확대되는 것 방지 */
+  body.modal-open{
+    position:fixed;
+    width:100%;
+    overflow:hidden;
+    touch-action:none;
+  }
+
   /* ===== 불러오기 모달 리스트 항목 ===== */
   .rm-item {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -567,7 +575,11 @@
 /* ===== 미디어 모달: 화면 높이별 제어 ===== */
   .mm-panel {
     position: relative; z-index: 1;
-    width: min(960px, 94vw);    
+    width: min(960px, 94vw);
+    
+    /* 기본(모바일) 높이 */
+    max-height: 85dvh; 
+    
     display: flex; flex-direction: column;
     background: #fff; border-radius: 14px;
     overflow: hidden;
@@ -773,7 +785,27 @@
     .login-form-wrap{ flex-wrap:wrap; gap:6px; }
     
     .spread{ grid-template-columns:1fr; }
-    .mm-panel{ width:100vw; height:100vh; border-radius:0; }
+    .mm-panel{ width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
+
+    /* 모바일 PDF 모달: A4 비율 고정 해제 → 헤더 제외 남은 높이를 iframe이 꽉 채움 */
+    #mediaModal .mm-panel.pdf-mode{
+      width:100vw;
+      height:100dvh;
+      max-height:100dvh;
+      border-radius:0;
+    }
+    #mediaModal .mm-panel.pdf-mode .mm-body{
+      flex:1 1 auto;
+      min-height:0;
+      aspect-ratio:auto;
+      overflow:hidden;
+    }
+    #mediaModal .mm-panel.pdf-mode .mm-body iframe{
+      width:100%;
+      height:100%;
+      display:block;
+      border:none;
+    }
     
     /* 모바일 버튼 텍스트 줄바꿈 분리 */
     .d-txt { display: none; }
@@ -967,7 +999,7 @@
 <div class="toolbar no-print">
   <button class="btn btn-ghost" id="resetBtn" type="button">
     <span class="d-txt">전체초기화</span>
-    <span class="m-txt" style="letter-spacing:-0.05em;">전체<br>초기화</span>
+    <span class="m-txt" style="letter-spacing:-0.05em;">초기화</span>
   </button>
   <button class="btn btn-ghost" id="loadBtn" type="button" style="display:none">
     <span class="d-txt">불러오기</span>
@@ -1626,7 +1658,7 @@ function openPdf(name, page){
   panel.classList.remove("yt-mode"); // 기존 yt-mode가 있다면 제거
   
   mmBody.className = "mm-body";
-  mmBody.innerHTML = `<iframe src="pdfviewer.html?file=${encodeURIComponent(PDF_FILE)}&page=${page}" title="${name} PDF"></iframe>`;
+  mmBody.innerHTML = `<iframe src="pdfviewer.html?file=${encodeURIComponent(PDF_FILE)}&page=${page}" title="${name} PDF" scrolling="yes"></iframe>`;
   showModal();
 }
 
@@ -1648,20 +1680,66 @@ function openYt(name, id){
   showModal();
 }
 
-function showModal(){ modal.hidden = false; document.body.style.overflow = "hidden"; }
-function closeModal(){
+let mediaModalHistoryPushed = false;
+let modalScrollY = 0;
+
+function lockPageBehindModal(){
+  modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.style.top = `-${modalScrollY}px`;
+  document.body.classList.add("modal-open");
+}
+function unlockPageBehindModal(){
+  document.body.classList.remove("modal-open");
+  document.body.style.top = "";
+  window.scrollTo(0, modalScrollY);
+}
+
+function showModal(){
+  modal.hidden = false;
+  lockPageBehindModal();
+
+  // 모바일 뒤로가기/스와이프 뒤로가기 1회 = 페이지 이탈이 아니라 모달 닫기
+  if(!mediaModalHistoryPushed){
+    history.pushState({ ...(history.state || {}), mediaModalOpen: true }, "", location.href);
+    mediaModalHistoryPushed = true;
+  }
+}
+
+function closeModal(options = {}){
+  if(modal.hidden && !mediaModalHistoryPushed) return;
+
+  // X/배경/Escape로 닫을 때도 우리가 pushState한 히스토리를 먼저 소비한다.
+  if(mediaModalHistoryPushed && !options.fromPopstate){
+    history.back();
+    return;
+  }
+
   modal.hidden = true;
   mmBody.innerHTML = "";
   mmExt.textContent = "새 탭에서 열기 ↗";
-  document.body.style.overflow = "";
+  unlockPageBehindModal();
+  mediaModalHistoryPushed = false;
   
   // [추가] 모달 패널 클래스 초기화
   const panel = modal.querySelector(".mm-panel");
   panel.classList.remove("pdf-mode", "yt-mode");
 }
 
-document.getElementById("mmClose").addEventListener("click", closeModal);
-modal.querySelector(".mm-backdrop").addEventListener("click", closeModal);
+window.addEventListener("popstate", () => {
+  if(mediaModalHistoryPushed && !modal.hidden){
+    closeModal({ fromPopstate: true });
+  }
+});
+
+// iOS Safari에서 모달 바깥/헤더 영역 핀치가 전체 페이지 확대를 유발하는 것 방지
+["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+  document.addEventListener(type, e => {
+    if(!modal.hidden) e.preventDefault();
+  }, { passive:false });
+});
+
+document.getElementById("mmClose").addEventListener("click", () => closeModal());
+modal.querySelector(".mm-backdrop").addEventListener("click", () => closeModal());
 document.addEventListener("keydown", e => { if(e.key === "Escape"){ closeModal(); closeMediaPop(); closeLoadModal(); } });
 document.addEventListener("click", e => {
   if(pop.hidden) return;

@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>과목 안내 PDF</title>
 
 <!-- 공식 pdf.js 뷰어 컴포넌트 (v3.11.174, UMD - GitHub Pages MIME 안전) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/pdf_viewer.css" />
 <style>
   :root{ --bar:#1c2b46; }
-  html,body{ margin:0; height:100%; background:#33373d; font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:#33373d; font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif; }
   /* 상단 미니 툴바 */
   #bar{
     position:absolute; top:0; left:0; right:0; height:42px; z-index:5;
@@ -30,6 +30,9 @@
   #viewerContainer{
     position:absolute; top:42px; left:0; right:0; bottom:0;
     overflow:auto; background:#33373d;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-x pan-y;
   }
   #viewer{ }
   .pdfViewer .page{ margin:10px auto; border:none; box-shadow:0 6px 18px -8px rgba(0,0,0,.6); }
@@ -94,9 +97,67 @@
       pageInfo.textContent = pdfViewer.currentPageNumber + " / " + (pdfViewer.pagesCount || "—");
     }
 
-    document.getElementById("zoomIn").onclick  = () => { pdfViewer.currentScale = Math.min((pdfViewer.currentScale||1)*1.2, 5); };
-    document.getElementById("zoomOut").onclick = () => { pdfViewer.currentScale = Math.max((pdfViewer.currentScale||1)/1.2, 0.25); };
+    const MIN_SCALE = 0.25;
+    const MAX_SCALE = 5;
+    const clampScale = v => Math.max(MIN_SCALE, Math.min(MAX_SCALE, v));
+
+    document.getElementById("zoomIn").onclick  = () => { pdfViewer.currentScale = clampScale((pdfViewer.currentScale||1)*1.2); };
+    document.getElementById("zoomOut").onclick = () => { pdfViewer.currentScale = clampScale((pdfViewer.currentScale||1)/1.2); };
     document.getElementById("fitW").onclick    = () => { pdfViewer.currentScaleValue = "page-width"; };
+
+    function touchDistance(t0, t1){
+      return Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+    }
+    function touchCenter(t0, t1){
+      const r = container.getBoundingClientRect();
+      return {
+        x: (t0.clientX + t1.clientX) / 2 - r.left,
+        y: (t0.clientY + t1.clientY) / 2 - r.top,
+      };
+    }
+
+    let pinch = null;
+    let pinchRaf = null;
+
+    container.addEventListener("touchstart", e => {
+      if(e.touches.length !== 2) return;
+      e.preventDefault();
+
+      const center = touchCenter(e.touches[0], e.touches[1]);
+      const startScale = pdfViewer.currentScale || 1;
+
+      pinch = {
+        dist: touchDistance(e.touches[0], e.touches[1]),
+        scale: startScale,
+        center,
+        contentX: (container.scrollLeft + center.x) / startScale,
+        contentY: (container.scrollTop + center.y) / startScale,
+      };
+    }, { passive:false });
+
+    container.addEventListener("touchmove", e => {
+      if(!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+
+      const nextScale = clampScale(pinch.scale * touchDistance(e.touches[0], e.touches[1]) / pinch.dist);
+      if(pinchRaf) cancelAnimationFrame(pinchRaf);
+      pinchRaf = requestAnimationFrame(() => {
+        pdfViewer.currentScale = nextScale;
+        container.scrollLeft = pinch.contentX * nextScale - pinch.center.x;
+        container.scrollTop  = pinch.contentY * nextScale - pinch.center.y;
+        updateLabels();
+      });
+    }, { passive:false });
+
+    container.addEventListener("touchend", e => {
+      if(e.touches.length < 2) pinch = null;
+    }, { passive:true });
+    container.addEventListener("touchcancel", () => { pinch = null; }, { passive:true });
+
+    // iOS Safari 기본 페이지 핀치 줌은 막고, 위의 PDF.js scale 변경만 사용한다.
+    ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+      document.addEventListener(type, e => e.preventDefault(), { passive:false });
+    });
 
     pdfjsLib.getDocument({
       url: FILE,

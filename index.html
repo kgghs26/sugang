@@ -542,6 +542,10 @@
   .rm-del-btn:hover:not(:disabled) { background: var(--alert); color: #fff; }
   .rm-load-btn:disabled, .rm-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .rm-empty { font-size: 13.5px; color: var(--ink-soft); text-align: center; padding: 20px 0; }
+  /* 불러오기 모달 — 제출본/임시저장본 섹션 구분 */
+  .rm-sec-title { font-size: 12px; font-weight: 800; color: var(--ink-soft); margin: 16px 2px 6px; letter-spacing: .02em; }
+  .rm-sec-title:first-child { margin-top: 0; }
+  .rm-badge.sub { background: var(--sel-bg); color: var(--sel); }
 
   /* ===== ⓘ 팝오버 ===== */
   .media-pop{
@@ -2024,63 +2028,106 @@ document.getElementById("pwHelpModalBack").addEventListener("click", closePwHelp
 async function fetchAndRenderRoadmaps() {
   const listContainer = document.getElementById("loadModalList");
   const errEl = document.getElementById("loadModalErr");
-  
-  // [수정] 데이터를 기다리는 동안 목록 영역에 간단한 텍스트만 표시
-  listContainer.innerHTML = `<div class="rm-empty">임시저장된 로드맵을 불러오는 중...</div>`;
+
+  listContainer.innerHTML = `<div class="rm-empty">불러오는 중...</div>`;
   errEl.textContent = "";
 
   try {
-    const res = await fetch(API + "/roadmaps", {
-      headers: { "Authorization": "Bearer " + authToken }
-    });
-    const list = await res.json();
-    
-    if (!res.ok) {
-      errEl.textContent = list.error || "목록을 불러오지 못했습니다.";
-      listContainer.innerHTML = "";
-      return;
-    }
+    // 제출본·임시저장본 병렬 조회
+    const [subRes, rdRes] = await Promise.all([
+      fetch(API + "/submit",   { headers: { "Authorization": "Bearer " + authToken } }),
+      fetch(API + "/roadmaps", { headers: { "Authorization": "Bearer " + authToken } }),
+    ]);
 
-    if (!list.length) {
-      listContainer.innerHTML = `<div class="rm-empty">저장된 로드맵이 없습니다.</div>`;
-      return;
-    }
+    const rdList     = rdRes.ok ? await rdRes.json() : [];
+    const submission = subRes.ok ? await subRes.json() : null;
 
-    listContainer.innerHTML = ""; // 로딩 문구 지우고 목록 그리기 시작
-    list.forEach(rd => {
+    listContainer.innerHTML = "";
+
+    // ── 제출본 섹션 (있을 때만 표시) ──
+    if (submission && submission.selections) {
+      const subTitle = document.createElement("div");
+      subTitle.className = "rm-sec-title";
+      subTitle.textContent = "제출본";
+      listContainer.appendChild(subTitle);
+
+      const d = new Date(submission.submittedAt);
+      const dateStr = String(d.getFullYear()).slice(2)
+        + String(d.getMonth() + 1).padStart(2, "0")
+        + String(d.getDate()).padStart(2, "0");
+      const timeStr = String(d.getHours()).padStart(2, "0")
+        + ":" + String(d.getMinutes()).padStart(2, "0");
+      const subName = `[${dateStr} ${timeStr}] 제출된 로드맵`;
+
       const item = document.createElement("div");
       item.className = "rm-item";
 
       const info = document.createElement("div");
       info.className = "rm-info";
-      const badge = rd.isComplete
-        ? `<span class="rm-badge ok">✓ 조건 충족</span>`
-        : `<span class="rm-badge bad">✗ 미충족</span>`;
-      info.innerHTML = `<div class="rm-name">${rd.name}</div><div class="rm-meta">${badge}</div>`;
+      info.innerHTML = `<div class="rm-name">${subName}</div>`
+        + `<div class="rm-meta"><span class="rm-badge sub">★ 최종 제출본</span></div>`;
 
       const actions = document.createElement("div");
       actions.className = "rm-actions";
-
       const loadBtn = document.createElement("button");
       loadBtn.type = "button";
       loadBtn.className = "rm-load-btn";
       loadBtn.textContent = "불러오기";
-
-      const delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "rm-del-btn";
-      delBtn.textContent = "삭제";
-
-      loadBtn.addEventListener("click", () => loadRoadmapData(rd._id, rd.name, loadBtn, delBtn));
-      delBtn.addEventListener("click", () => deleteRoadmapData(rd._id, rd.name, loadBtn, delBtn));
-
+      // 제출본은 삭제 버튼 없음 (학생이 임의 삭제 불가)
+      loadBtn.addEventListener("click", () => loadSubmissionFromData(submission, subName, loadBtn));
       actions.appendChild(loadBtn);
-      actions.appendChild(delBtn);
 
       item.appendChild(info);
       item.appendChild(actions);
       listContainer.appendChild(item);
-    });
+    }
+
+    // ── 임시저장본 섹션 ──
+    const rdTitle = document.createElement("div");
+    rdTitle.className = "rm-sec-title";
+    rdTitle.textContent = "임시저장본";
+    listContainer.appendChild(rdTitle);
+
+    if (!rdList.length) {
+      const empty = document.createElement("div");
+      empty.className = "rm-empty";
+      empty.textContent = "저장된 로드맵이 없습니다.";
+      listContainer.appendChild(empty);
+    } else {
+      rdList.forEach(rd => {
+        const item = document.createElement("div");
+        item.className = "rm-item";
+
+        const info = document.createElement("div");
+        info.className = "rm-info";
+        const badge = rd.isComplete
+          ? `<span class="rm-badge ok">✓ 조건 충족</span>`
+          : `<span class="rm-badge bad">✗ 미충족</span>`;
+        info.innerHTML = `<div class="rm-name">${rd.name}</div><div class="rm-meta">${badge}</div>`;
+
+        const actions = document.createElement("div");
+        actions.className = "rm-actions";
+
+        const loadBtn = document.createElement("button");
+        loadBtn.type = "button";
+        loadBtn.className = "rm-load-btn";
+        loadBtn.textContent = "불러오기";
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "rm-del-btn";
+        delBtn.textContent = "삭제";
+
+        loadBtn.addEventListener("click", () => loadRoadmapData(rd._id, rd.name, loadBtn, delBtn));
+        delBtn.addEventListener("click", () => deleteRoadmapData(rd._id, rd.name, loadBtn, delBtn));
+
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+        item.appendChild(info);
+        item.appendChild(actions);
+        listContainer.appendChild(item);
+      });
+    }
   } catch {
     errEl.textContent = "서버 연결 오류가 발생했습니다.";
     listContainer.innerHTML = "";
@@ -2088,8 +2135,28 @@ async function fetchAndRenderRoadmaps() {
 }
 
 // 선택한 파일 데이터 화면 로드
+// 공통: 저장된 데이터(selections/excluded)를 화면에 복원
+// 임시저장본·제출본 모두 동일한 구조이므로 함께 사용
+function applyRoadmapToScreen(rd) {
+  resetAll();
+  excluded.clear();
+  if (rd.excluded) {
+    Object.entries(rd.excluded).forEach(([semId, names]) => {
+      (names || []).forEach(nm => excluded.add(key(semId, nm)));
+    });
+  }
+  applyExcluded();
+  Object.entries(rd.selections || {}).forEach(([semId, courses]) => {
+    courses.forEach(cName => {
+      const btn = document.querySelector(`.course[data-sem="${semId}"][data-name="${CSS.escape(cName)}"]`);
+      if (btn) { btn.setAttribute("aria-pressed", "true"); selected.add(key(semId, cName)); }
+    });
+  });
+  recompute();
+}
+
+// 임시저장본 불러오기 (서버에서 개별 조회)
 async function loadRoadmapData(id, name, loadBtn, delBtn) {
-  // [수정] 해당 항목의 버튼 텍스트만 '불러오는 중...'으로 변경하고 비활성화
   const origText = loadBtn.textContent;
   loadBtn.textContent = "불러오는 중...";
   loadBtn.disabled = true;
@@ -2102,31 +2169,28 @@ async function loadRoadmapData(id, name, loadBtn, delBtn) {
     const rd = await res.json();
     if (!rd.selections) { alert("데이터를 불러올 수 없습니다."); return; }
 
-    resetAll();
-    // 제외 목록 복원
-    excluded.clear();
-    if(rd.excluded){
-      Object.entries(rd.excluded).forEach(([semId, names]) => {
-        (names || []).forEach(nm => excluded.add(key(semId, nm)));
-      });
-    }
-    applyExcluded();
-    Object.entries(rd.selections).forEach(([semId, courses]) => {
-      courses.forEach(cName => {
-        const btn = document.querySelector(`.course[data-sem="${semId}"][data-name="${CSS.escape(cName)}"]`);
-        if (btn) { btn.setAttribute("aria-pressed", "true"); selected.add(key(semId, cName)); }
-      });
-    });
-    recompute();
+    applyRoadmapToScreen(rd);
     alert(`"${name}" 불러오기 완료!`);
     closeLoadModal();
   } catch {
     alert("서버 연결 오류");
   } finally {
-    // 완료 시 버튼 상태 원래대로 복구
     loadBtn.textContent = origText;
     loadBtn.disabled = false;
     delBtn.disabled = false;
+  }
+}
+
+// 제출본 불러오기 (목록 렌더링 시 이미 받은 데이터를 재사용 — 재요청 없음)
+function loadSubmissionFromData(sub, name, loadBtn) {
+  loadBtn.disabled = true;
+  try {
+    applyRoadmapToScreen(sub);
+    alert(`"${name}" 불러오기 완료!`);
+    closeLoadModal();
+  } catch {
+    alert("불러오기 중 오류가 발생했습니다.");
+    loadBtn.disabled = false;
   }
 }
 

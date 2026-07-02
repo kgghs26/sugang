@@ -10,7 +10,7 @@ function verify(req){
 
 export default async function handler(req, res){
   // ===== CORS 허용 =====
-  res.setHeader("Access-Control-Allow-Origin", "https://csolutn.github.io");
+  res.setHeader("Access-Control-Allow-Origin", "https://kgghs26.github.io");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();  // preflight 응답

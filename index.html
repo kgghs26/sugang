@@ -1858,25 +1858,43 @@ const API = "https://sugang-tan.vercel.app/api";
 let authToken = sessionStorage.getItem("sgToken") || null;
 let authUser  = JSON.parse(sessionStorage.getItem("sgUser") || "null");
 
-// JWT payload에서 role 추출
-function tokenRole(token){
-  try{ return JSON.parse(atob(token.split(".")[1])).role || "student"; }
-  catch{ return "student"; }
+// JWT payload를 안전하게 디코딩 (base64url 형식 + 한글 등 멀티바이트 UTF-8 대응)
+// ⚠️ 기존 atob()는 표준 base64만 지원하는데, JWT는 base64url(-,_ 포함) 형식이라
+//    페이로드에 '-' 또는 '_'가 우연히 포함되면(한글 이름 인코딩 시 종종 발생) atob()가 예외를 던짐
+function decodeJwtPayload(token){
+  try{
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "===".slice((base64.length + 3) % 4);
+    const jsonStr = decodeURIComponent(
+      atob(padded)
+        .split("")
+        .map(c => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("")
+    );
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
 }
 
+// JWT payload에서 role 추출
+function tokenRole(token){
+  const payload = decodeJwtPayload(token);
+  return (payload && payload.role) || "student";
+}
 // 로그인 상태 UI 반영
 function applyAuthState(){
   // 만료된 JWT면 자동 로그아웃 처리 (8h 만료 후 같은 탭 재방문 대비)
   if(authToken){
-    try{
-      const payload = JSON.parse(atob(authToken.split(".")[1]));
-      if(payload.exp && payload.exp * 1000 < Date.now()) throw new Error("expired");
-    } catch{
-      authToken = null; authUser = null;
-      sessionStorage.removeItem("sgToken");
-      sessionStorage.removeItem("sgUser");
+      const payload = decodeJwtPayload(authToken);
+      // 디코딩 자체가 실패했거나(=토큰 손상) 진짜로 만료된 경우에만 로그아웃 처리
+      if(!payload || (payload.exp && payload.exp * 1000 < Date.now())){
+        authToken = null; authUser = null;
+        sessionStorage.removeItem("sgToken");
+        sessionStorage.removeItem("sgUser");
+      }
     }
-  }
 
   const loggedIn  = !!authToken;
   const role      = (authUser && authUser.role) || "";

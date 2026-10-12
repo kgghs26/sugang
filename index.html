@@ -2700,8 +2700,9 @@ function onStuSimClick(e){
     case "restore":
       skip.delete(name);
       break;
-    case "semreset":
+    case "semreset":   // 학생 화면 resetSemester와 동일: 선택 해제 + 제외 과목 복원
       picked.clear();
+      skip.clear();
       break;
   }
   renderStuSim();

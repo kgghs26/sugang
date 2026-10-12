@@ -703,11 +703,73 @@
   .cs-item .who .sid{ font-size:11px; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
   .cs-item .who .nm{ font-size:13.5px; font-weight:700; color:var(--ink); }
 
-  .stu-sem{ margin-bottom:14px; }
-  .stu-sem h4{ margin:0 0 6px; font-size:14px; color:var(--ink); border-bottom:1px solid var(--line); padding-bottom:4px; }
-  .stu-sem .courses{ display:flex; flex-wrap:wrap; gap:6px; }
-  .stu-sem .c{ font-size:12.5px; background:var(--sel-bg); color:var(--sel); border-radius:6px; padding:3px 9px; font-weight:600; }
+  /* 학생 제출 내역 모달: 학생 화면 펼침면 재사용 (시뮬레이션 가능, 저장 없음) */
+  @media (min-width: 681px){
+    #stuModal .mm-panel{ width:min(1280px, 96vw); }
+  }
   .stu-meta{ font-size:12.5px; color:var(--ink-soft); margin-bottom:12px; }
+  /* 교과군 필수요건: 학생 화면 하단 미니바와 같은 모양으로 모달 하단에 고정 */
+  .stu-statusbar{ position:static; flex:0 0 auto; z-index:auto; }
+  .stu-statusbar[hidden]{ display:none; }
+  .stu-reqs{ display:none; gap:10px; justify-content:center; }   /* 인쇄 전용 사본 */
+  .sim-badge{
+    display:inline-block; margin-left:6px; padding:1px 9px; border-radius:999px;
+    background:var(--warn-bg); color:var(--warn); font-weight:700;
+  }
+  .sim-hint{ margin-left:6px; color:var(--sel); font-weight:600; }
+  .mm-btn{
+    font-family:var(--font-body); font-size:12.5px; font-weight:700; color:#fff; cursor:pointer;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); border-radius:7px;
+    padding:4px 11px; white-space:nowrap;
+  }
+  .mm-btn:hover{ background:rgba(255,255,255,.24); }
+  .mm-btn[hidden]{ display:none; }
+
+  /* 학생 제출 내역 인쇄 (관리자 모달 → #stuPrintArea 복사본만 출력) */
+  #stuPrintArea{ display:none; }
+  @media print{
+    @page{ size:A4 portrait; margin:8mm; }
+    body.printing-stu{
+      position:static !important; top:auto !important; padding:0 !important;
+      background:#fff !important; overflow:visible !important;
+    }
+    body.printing-stu > :not(#stuPrintArea){ display:none !important; }
+    body.printing-stu #stuPrintArea{
+      display:block; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    #stuPrintArea .sp-title{ font-size:16px; font-weight:800; color:var(--ink); margin-bottom:4px; }
+    #stuPrintArea .no-print,
+    #stuPrintArea .excl-btn,
+    #stuPrintArea .sem-reset,
+    #stuPrintArea .info-sp{ display:none !important; }
+    #stuPrintArea .stu-meta{ margin-bottom:8px; }
+    #stuPrintArea .stu-reqs{ display:flex; margin-bottom:10px; }
+    #stuPrintArea .spread{
+      display:flex !important; gap:0 !important; background:#fff !important;
+      border:1px solid var(--line-strong) !important; box-shadow:none !important;
+    }
+    #stuPrintArea .spine{ display:block !important; flex-basis:10px; }
+    #stuPrintArea .col{
+      min-width:0 !important; border:0 !important; border-right:1px solid var(--line) !important;
+      border-radius:0 !important; box-shadow:none !important;
+    }
+    #stuPrintArea .col:last-child{ border-right:0 !important; }
+    #stuPrintArea .col-head{
+      position:static !important; box-shadow:none !important;
+      padding:6px 6px 7px; border-radius:0 !important;
+    }
+    #stuPrintArea .col-head .head-row{ flex-wrap:wrap; justify-content:center; gap:4px; }
+    #stuPrintArea .col-head .gterm{ font-size:13px; }
+    #stuPrintArea .col-head .pick{ font-size:10px; }
+    #stuPrintArea .col-head .count{ font-size:11px; padding:1px 7px; }
+    #stuPrintArea .fixed-inline{ font-size:9px; }
+    #stuPrintArea .group{ padding:4px 6px 0; }
+    #stuPrintArea .course-row{ margin-bottom:3px; }
+    #stuPrintArea .course{ font-size:11px; padding:3px 6px; gap:5px; }
+    #stuPrintArea .course:disabled{ opacity:1; filter:none; background:#fff; }
+    #stuPrintArea .course .box{ width:14px; height:14px; font-size:10px; }
+    #stuPrintArea .excluded-box{ margin-top:8px; padding:8px 12px; break-inside:avoid; }
+  }
 
   /* 중복 이름 옵션 버튼 */
   .dupe-opt{
@@ -1077,10 +1139,13 @@
       <div class="mm-head">
         <span class="mm-title" id="stuModalTitle"></span>
         <div class="mm-actions">
+          <button class="mm-btn" id="stuSimReset" type="button" hidden>되돌리기</button>
+          <button class="mm-btn" id="stuPrint" type="button" hidden>인쇄</button>
           <button class="mm-x" id="stuModalClose" type="button" aria-label="닫기">✕</button>
         </div>
       </div>
-      <div class="mm-body" id="stuModalBody" style="background:#fff; overflow:auto; padding:16px;"></div>
+      <div class="mm-body" id="stuModalBody" style="background:var(--paper); overflow:auto; padding:16px;"></div>
+      <div class="statusbar stu-statusbar" id="stuStatus" aria-label="교과군 필수 조건 충족 현황" hidden></div>
     </div>
   </div>
 
@@ -1329,10 +1394,15 @@ const SEMESTERS = [
         ["과학의 역사와 문화","sayung"],["기후변화와 환경생태","sayung"] ] },
       { subject:"기술·가정/정보", courses:[ ["지식 재산 일반","yunghap"] ] },
       { subject:"제2외국어/한문", courses:[ ["스페인어권 문화","yunghap"],["심화 일본어","jinro"] ] },
-      { subject:"예술", courses:[ ["음악콘텐츠 제작 기초","jinro"],["[변경예정]조형→조형탐구1","jinro"] ] },
+      { subject:"예술", courses:[ ["음악콘텐츠 제작 기초","jinro"],["조형탐구1","jinro"] ] },
     ]
   },
 ];
+
+// 이름이 바뀐 과목: 예전 이름으로 저장된 임시저장본·제출본도 새 이름으로 읽음 (api/admin/matrix.js와 동일)
+const RENAMED = { "[변경예정]조형→조형탐구1": "조형탐구1" };
+const canonName = nm => RENAMED[nm] || nm;
+const canonList = list => (list || []).map(canonName);
 
 /* =========================================================
    2) 상태 + 펼침면 렌더링
@@ -1549,27 +1619,28 @@ function recompute(){
   });
 
   // --- 교과군 필수요건: 하단 미니바 + PDF 요약에 표시 ---
-  const techLang = cat.TECH + cat.LANG;
-  const kmeOk = cat.KME <= 8;     // 국·수·영 합계 8과목 "이하"
-  const tlOk  = techLang >= 4;    // 기가/정보 + 제2외국어 4과목 "이상"
-  const artOk = cat.ART >= 2;     // 예술 2과목 "이상"
-
-  // ⬇ = 이하(최대) 조건, ⬆ = 이상(최소) 조건
-  const reqs = [
-    { ok:kmeOk, label:"국·수·영",        val:`${cat.KME}/8⬇` },
-    { ok:tlOk,  label:"기가/정보 외국어", val:`${techLang}/4⬆` },
-    { ok:artOk, label:"예술",            val:`${cat.ART}/2⬆` },
-  ];
+  const reqs = reqsOf(cat);
 
   // 하단 미니바
   const sb = document.getElementById("statusbar");
-  sb.classList.toggle("done", kmeOk && tlOk && artOk);
+  sb.classList.toggle("done", reqs.every(r => r.ok));
   sb.innerHTML = reqs.map(r => sbChip(r.ok, r.label, r.val)).join("");
 
   // PDF 저장 시 출력되는 요약
   document.getElementById("psItems").innerHTML = reqs.map(r =>
     `<span class="ps-item ${r.ok ? "ok" : "bad"}">${r.ok ? "✓" : "✗"} ${r.label} ${r.val}</span>`
   ).join("");
+}
+
+// 교과군 필수요건 목록 (학생 화면 미니바·PDF 요약·관리자 상세 모달 공통)
+// ⬇ = 이하(최대) 조건, ⬆ = 이상(최소) 조건
+function reqsOf(cat){
+  const techLang = cat.TECH + cat.LANG;
+  return [
+    { ok:cat.KME <= 8,  label:"국·수·영",        val:`${cat.KME}/8⬇` },    // 국·수·영 합계 8과목 "이하"
+    { ok:techLang >= 4, label:"기가/정보 외국어", val:`${techLang}/4⬆` },   // 기가/정보 + 제2외국어 4과목 "이상"
+    { ok:cat.ART >= 2,  label:"예술",            val:`${cat.ART}/2⬆` },    // 예술 2과목 "이상"
+  ];
 }
 
 // 현황바 칩 (충족=녹색 ✓ / 미충족=붉은색 ✗)
@@ -2156,12 +2227,12 @@ function applyRoadmapToScreen(rd) {
   excluded.clear();
   if (rd.excluded) {
     Object.entries(rd.excluded).forEach(([semId, names]) => {
-      (names || []).forEach(nm => excluded.add(key(semId, nm)));
+      canonList(names).forEach(nm => excluded.add(key(semId, nm)));
     });
   }
   applyExcluded();
   Object.entries(rd.selections || {}).forEach(([semId, courses]) => {
-    courses.forEach(cName => {
+    canonList(courses).forEach(cName => {
       const btn = document.querySelector(`.course[data-sem="${semId}"][data-name="${CSS.escape(cName)}"]`);
       if (btn) { btn.setAttribute("aria-pressed", "true"); selected.add(key(semId, cName)); }
     });
@@ -2287,7 +2358,6 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 /* =========================================================
    9) 관리자 패널
    ========================================================= */
-const SEM_TITLE = { s21:"2학년 1학기", s22:"2학년 2학기", s31:"3학년 1학기", s32:"3학년 2학기" };
 let adminInited = false;
 
 function initAdminPanel(teacherCls){
@@ -2337,6 +2407,9 @@ function initAdminPanel(teacherCls){
   clsSel.addEventListener("change", loadClass);
   document.getElementById("stuModalClose").addEventListener("click", closeStuModal);
   document.getElementById("stuModalBack").addEventListener("click", closeStuModal);
+  document.getElementById("stuModalBody").addEventListener("click", onStuSimClick);
+  document.getElementById("stuSimReset").addEventListener("click", resetStuSim);
+  document.getElementById("stuPrint").addEventListener("click", printStuSim);
 
   if(isTeacher){
     // 담임: 전체 현황 탭/패널 차단, 학급별 현황만
@@ -2449,9 +2522,15 @@ async function loadClass(){
 }
 
 // 학생 제출 내역 상세 모달
+// 학생 화면과 같은 펼침면으로 보여주고, 클릭으로 시뮬레이션 가능 (서버 저장 없음, 인쇄만 가능)
+let stuSim = null;   // { title, sub, picked:{semId:Set}, skip:{semId:Set}, extra:{semId:[]} }
+
 async function viewStudent(sid, name){
   const body = document.getElementById("stuModalBody");
-  document.getElementById("stuModalTitle").textContent = `${sid} ${name} · 제출 내역`;
+  const title = `${sid} ${name} · 제출 내역`;
+  document.getElementById("stuModalTitle").textContent = title;
+  stuSim = null;
+  setStuSimActions(false);
   body.innerHTML = "불러오는 중…";
   document.getElementById("stuModal").hidden = false;
   lockPageBehindModal();   // mediaModal과 동일한 잠금 패턴 (iOS 스크롤 튐 방지)
@@ -2462,17 +2541,191 @@ async function viewStudent(sid, name){
     const d = await res.json();
     if(!res.ok){ body.innerHTML = d.error || "오류"; return; }
 
-    const when = d.submittedAt ? new Date(d.submittedAt).toLocaleString("ko-KR") : "-";
-    let html = `<div class="stu-meta">제출 시각: ${when} · ${d.isComplete ? "✓ 조건 충족" : "✗ 미충족"}</div>`;
-    ["s21","s22","s31","s32"].forEach(sem => {
-      const list = (d.selections && d.selections[sem]) || [];
-      html += `<div class="stu-sem"><h4>${SEM_TITLE[sem]} (${list.length})</h4><div class="courses">` +
-        (list.length ? list.map(c => `<span class="c">${c}</span>`).join("") : `<span style="color:#999;font-size:12px">선택 없음</span>`) +
-        `</div></div>`;
-    });
-    body.innerHTML = html;
+    stuSim = { title, sub: d };
+    resetStuSim();
+    setStuSimActions(true);
   } catch{ body.innerHTML = "서버 연결 오류"; }
 }
+
+function setStuSimActions(on){
+  document.getElementById("stuSimReset").hidden = !on;
+  document.getElementById("stuPrint").hidden = !on;
+  document.getElementById("stuStatus").hidden = !on;
+}
+
+// 시뮬레이션 상태를 제출본으로 되돌림
+function resetStuSim(){
+  if(!stuSim) return;
+  const sel = stuSim.sub.selections || {};
+  const exc = stuSim.sub.excluded || {};
+  stuSim.picked = {}; stuSim.skip = {}; stuSim.extra = {};
+  SEMESTERS.forEach(sem => {
+    const known = new Set(sem.groups.flatMap(g => g.courses.map(c => c[0])));
+    stuSim.picked[sem.id] = new Set(canonList(sel[sem.id]));
+    stuSim.skip[sem.id]   = new Set(canonList(exc[sem.id]));
+    // 과목 목록이 바뀌어 현재 화면에 없는 과목을 제출한 경우에도 누락 없이 표시
+    stuSim.extra[sem.id]  = canonList(sel[sem.id]).filter(nm => !known.has(nm));
+  });
+  renderStuSim();
+}
+
+// 제출본과 달라졌는지 (선택/제외 비교)
+function stuSimChanged(){
+  const sel = stuSim.sub.selections || {};
+  const exc = stuSim.sub.excluded || {};
+  const same = (set, arr) => set.size === new Set(arr).size && arr.every(nm => set.has(nm));
+  return SEMESTERS.some(s =>
+    !same(stuSim.picked[s.id], canonList(sel[s.id])) || !same(stuSim.skip[s.id], canonList(exc[s.id])));
+}
+
+// 학생이 입력한 문자열(과목명 등)을 HTML에 넣기 전 이스케이프
+const escHtml = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+function renderStuSim(){
+  const body = document.getElementById("stuModalBody");
+  const scrollTop = body.scrollTop;
+  const cat = { KME:0, SOC:0, SCI:0, TECH:0, LANG:0, ART:0, ETC:0 };
+  const excRows = [];
+  let allFull = true;
+
+  const rowHtml = (semId, name, t, on, disabled) => {
+    const ty = TYPE[t] || TYPE.ilban;
+    const nm = escHtml(name);
+    return `<div class="course-row"><span class="info-sp"></span>
+      <button type="button" class="course" data-act="toggle" data-sem="${semId}" data-name="${nm}"
+        aria-pressed="${on}"${disabled ? " disabled" : ""}>
+        <span class="mk ${ty.cls}">${ty.mk}</span>
+        <span class="nm">${nm}</span>
+        <span class="box">✓</span>
+      </button>
+      <button type="button" class="excl-btn" data-act="excl" data-sem="${semId}" data-name="${nm}"
+        title="이 과목 제외" aria-label="${nm} 제외">✕</button></div>`;
+  };
+
+  let cols = "";
+  SEMESTERS.forEach((sem, idx) => {
+    if(idx === 2) cols += `<div class="spine"></div>`;   // 2학년 면 | 3학년 면 사이 책등
+    const picked = stuSim.picked[sem.id];
+    const skip   = stuSim.skip[sem.id];
+    const n = picked.size;
+    const atLimit = n >= sem.need;   // 정원 도달 시 미선택 과목 비활성화 (학생 화면과 동일)
+    if(n !== sem.need) allFull = false;
+
+    let groups = "";
+    sem.groups.forEach(g => {
+      let rows = "";
+      g.courses.forEach(([name, t]) => {
+        const on = picked.has(name);
+        if(on) cat[catOf(g.subject)]++;
+        if(skip.has(name) && !on) return;   // 학생 화면처럼 제외한 과목은 숨김
+        rows += rowHtml(sem.id, name, t, on, atLimit && !on);
+      });
+      groups += `<div class="group"><div class="gname">${g.subject}</div>${rows}</div>`;
+    });
+    const extra = stuSim.extra[sem.id];
+    if(extra.length){
+      groups += `<div class="group"><div class="gname">목록에 없는 과목</div>` +
+        extra.map(nm => {
+          const on = picked.has(nm);
+          if(on) cat.ETC++;
+          return rowHtml(sem.id, nm, "ilban", on, atLimit && !on);
+        }).join("") + `</div>`;
+    }
+
+    const names = [...skip].filter(nm => !picked.has(nm));
+    if(names.length) excRows.push({ sem, names });
+
+    cols +=
+      `<div class="col" data-sem="${sem.id}">
+         <div class="col-head">
+           <button class="sem-reset" type="button" data-act="semreset" data-sem="${sem.id}" title="이 학기 선택 초기화">↺ 초기화</button>
+           <div class="head-row">
+             <div class="gterm">${sem.title}</div>
+             <div class="pick">택 ${sem.need} · <span class="count ${n === sem.need ? "ok" : "bad"}">${n} / ${sem.need}</span></div>
+           </div>
+           <div class="fixed-inline"><b>학교지정</b> ${sem.fixed.join(" | ")}</div>
+         </div>
+         ${groups}
+       </div>`;
+  });
+
+  const reqs = reqsOf(cat);
+  const nowOk = allFull && reqs.every(r => r.ok);
+  const d = stuSim.sub;
+  const when = d.submittedAt ? new Date(d.submittedAt).toLocaleString("ko-KR") : "-";
+  const state = stuSimChanged()
+    ? `<span class="sim-badge">시뮬레이션 중 · 저장되지 않음 · ${nowOk ? "✓ 조건 충족" : "✗ 미충족"}</span>`
+    : `<span class="sim-hint no-print">과목을 눌러 시뮬레이션할 수 있어요 (저장되지 않음)</span>`;
+  const chips = reqs.map(r => sbChip(r.ok, r.label, r.val)).join("");
+
+  // 하단 고정 미니바 (학생 화면 #statusbar와 동일한 판정)
+  const sb = document.getElementById("stuStatus");
+  sb.classList.toggle("done", reqs.every(r => r.ok));
+  sb.innerHTML = chips;
+
+  let html =
+    `<div class="stu-meta">제출 시각: ${when} · 제출본 ${d.isComplete ? "✓ 조건 충족" : "✗ 미충족"} ${state}</div>
+     <div class="stu-reqs">${chips}</div>
+     <div class="spread">${cols}</div>`;
+
+  if(excRows.length){
+    html += `<div class="excluded-box"><div class="eb-title">제외한 과목</div><div class="eb-rows">` +
+      excRows.map(r =>
+        `<div class="eb-row"><span class="eb-sem">${r.sem.title}</span><div class="eb-chips">` +
+        r.names.map(nm =>
+          `<span class="eb-chip"><span class="eb-nm">${escHtml(nm)}</span>` +
+          `<button type="button" class="eb-restore no-print" data-act="restore" data-sem="${r.sem.id}" data-name="${escHtml(nm)}">복원</button></span>`
+        ).join("") + `</div></div>`
+      ).join("") + `</div></div>`;
+  }
+  body.innerHTML = html;
+  body.scrollTop = scrollTop;
+}
+
+// 모달 안 클릭 (이벤트 위임) — 화면 상태만 바꾸고 서버에는 보내지 않음
+function onStuSimClick(e){
+  const b = e.target.closest("[data-act]");
+  if(!b || !stuSim || b.disabled) return;
+  const semId = b.dataset.sem, name = b.dataset.name;
+  const picked = stuSim.picked[semId], skip = stuSim.skip[semId];
+  switch(b.dataset.act){
+    case "toggle":
+      picked.has(name) ? picked.delete(name) : picked.add(name);
+      break;
+    case "excl":
+      if(picked.has(name)){ alert("체크박스 해제 후 제외 가능합니다."); return; }
+      skip.add(name);
+      break;
+    case "restore":
+      skip.delete(name);
+      break;
+    case "semreset":
+      picked.clear();
+      break;
+  }
+  renderStuSim();
+}
+
+// 인쇄: 모달 내용만 별도 영역에 복사해 인쇄 (현재 시뮬레이션 상태 그대로)
+function printStuSim(){
+  if(!stuSim) return;
+  document.getElementById("stuPrintArea")?.remove();
+  const area = document.createElement("div");
+  area.id = "stuPrintArea";
+  area.innerHTML = `<div class="sp-title">${escHtml(stuSim.title)}</div>` +
+    document.getElementById("stuModalBody").innerHTML;
+  document.body.appendChild(area);
+  document.body.classList.add("printing-stu");
+  const done = () => {
+    document.body.classList.remove("printing-stu");
+    area.remove();
+    window.removeEventListener("afterprint", done);
+  };
+  window.addEventListener("afterprint", done);
+  window.print();
+}
+
 // 중복 이름 옵션 모달 (Promise 반환: 최종 이름 or null=취소)
 function showDupeModal(name){
   return new Promise(resolve => {
@@ -2517,6 +2770,7 @@ function showDupeModal(name){
 
 function closeStuModal(){
   document.getElementById("stuModal").hidden = true;
+  stuSim = null;
   unlockPageBehindModal();   // viewStudent의 lockPageBehindModal과 짝 맞춤
 }
 

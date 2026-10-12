@@ -15,6 +15,10 @@ const SEM_COURSES = {
   s32: ["매체 의사소통","언어생활 탐구","수학과 문화","실용 통계","심화 영어 독해와 작문","미디어 영어","국제 관계의 이해","인문학과 윤리","도시의 미래 탐구","여행지리","과학의 역사와 문화","기후변화와 환경생태","지식 재산 일반","스페인어권 문화","심화 일본어","음악콘텐츠 제작 기초","조형탐구1"]
 };
 
+// 이름이 바뀐 과목: 예전 이름으로 저장된 제출본도 새 이름으로 집계 (index.html의 RENAMED와 동일)
+const RENAMED = { "[변경예정]조형→조형탐구1": "조형탐구1" };
+const canonList = list => (list || []).map(c => RENAMED[c] || c);
+
 function verify(req){
   const auth = req.headers.authorization || "";
   return jwt.verify(auth.replace("Bearer ", ""), process.env.JWT_SECRET);
@@ -185,7 +189,7 @@ export default async function handler(req, res){
       allStudents.forEach(stu => {
         const sub   = subMap.get(stu.sid);
         const state = sub ? "제출" : "미제출";
-        const picked = new Set(sub?.selections?.[sem] || []);
+        const picked = new Set(canonList(sub?.selections?.[sem]));
         csv += [stu.sid, state, ...cols.map(c => (picked.has(c) ? 1 : 0))]
           .map(cell).join(",") + "\n";
       });
@@ -201,7 +205,7 @@ export default async function handler(req, res){
   const courseCount = {};
   courses.forEach(c => courseCount[c] = 0);
   subs.forEach(sub => {
-    (sub.selections?.[semester] || []).forEach(c => {
+    canonList(sub.selections?.[semester]).forEach(c => {
       if (c in courseCount) courseCount[c]++;
     });
   });

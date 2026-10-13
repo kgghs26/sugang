@@ -704,6 +704,7 @@
   .cs-item .who .nm{ font-size:13.5px; font-weight:700; color:var(--ink); }
 
   /* 학생 제출 내역 모달: 학생 화면 펼침면 재사용 (시뮬레이션 가능, 저장 없음) */
+  #stuModal .mm-panel{ height:100vh; height:100dvh; max-height:none; }   /* 브라우저 높이 100% */
   @media (min-width: 681px){
     #stuModal .mm-panel{ width:min(1280px, 96vw); }
   }
@@ -1135,7 +1136,7 @@
   <!-- 학생 제출내역 상세 모달 -->
   <div id="stuModal" class="media-modal no-print" hidden>
     <div class="mm-backdrop" id="stuModalBack"></div>
-    <div class="mm-panel" style="height:auto; max-height:88vh;">
+    <div class="mm-panel">
       <div class="mm-head">
         <span class="mm-title" id="stuModalTitle"></span>
         <div class="mm-actions">
@@ -2510,12 +2511,11 @@ async function loadClass(){
     grid.innerHTML = "";
     d.students.forEach(s => {
       const item = document.createElement("div");
-      // 제출 완료(complete)만 클릭해서 내역을 볼 수 있음
-      // draft(임시저장)는 학생이 아직 공개 의사를 밝히지 않은 상태이므로 담임에게 비공개
-      const clickable = s.status === "complete";
-      item.className = `cs-item ${s.status}` + (clickable ? " clickable" : "");
+      // 모든 학생 클릭 가능: 제출본이 있으면 제출 내역, 없으면 빈 화면으로 시뮬레이션
+      // draft(임시저장) 내용은 학생이 아직 공개 의사를 밝히지 않은 상태이므로 계속 비공개
+      item.className = `cs-item ${s.status} clickable`;
       item.innerHTML = `<span class="dot"></span><span class="who"><span class="sid">${s.sid}</span><span class="nm">${s.name}</span></span>`;
-      if(clickable) item.addEventListener("click", () => viewStudent(s.sid, s.name));
+      item.addEventListener("click", () => viewStudent(s.sid, s.name));
       grid.appendChild(item);
     });
   } catch{ grid.innerHTML = `<div class="cs-item none"><span class="who"><span class="nm">서버 연결 오류</span></span></div>`; }
@@ -2523,12 +2523,12 @@ async function loadClass(){
 
 // 학생 제출 내역 상세 모달
 // 학생 화면과 같은 펼침면으로 보여주고, 클릭으로 시뮬레이션 가능 (서버 저장 없음, 인쇄만 가능)
-let stuSim = null;   // { title, sub, picked:{semId:Set}, skip:{semId:Set}, extra:{semId:[]} }
+// - 미제출 학생은 빈 화면에서 시뮬레이션 시작
+let stuSim = null;   // { title, submitted, sub, picked:{semId:Set}, skip:{semId:Set}, extra:{semId:[]} }
 
 async function viewStudent(sid, name){
   const body = document.getElementById("stuModalBody");
-  const title = `${sid} ${name} · 제출 내역`;
-  document.getElementById("stuModalTitle").textContent = title;
+  document.getElementById("stuModalTitle").textContent = `${sid} ${name} · 불러오는 중`;
   stuSim = null;
   setStuSimActions(false);
   body.innerHTML = "불러오는 중…";
@@ -2539,9 +2539,13 @@ async function viewStudent(sid, name){
       headers:{ "Authorization":"Bearer " + authToken }
     });
     const d = await res.json();
-    if(!res.ok){ body.innerHTML = d.error || "오류"; return; }
+    // 예전 API는 미제출이면 404 → 미제출로 처리
+    if(!res.ok && res.status !== 404){ body.innerHTML = d.error || "오류"; return; }
 
-    stuSim = { title, sub: d };
+    const submitted = res.ok && d.submitted !== false;
+    const title = `${sid} ${name} · ${submitted ? "제출 내역" : "미제출"}`;
+    document.getElementById("stuModalTitle").textContent = title;
+    stuSim = { title, submitted, sub: submitted ? d : { selections: {}, excluded: {} } };
     resetStuSim();
     setStuSimActions(true);
   } catch{ body.innerHTML = "서버 연결 오류"; }
@@ -2664,8 +2668,11 @@ function renderStuSim(){
   sb.classList.toggle("done", reqs.every(r => r.ok));
   sb.innerHTML = chips;
 
+  const base = stuSim.submitted
+    ? `제출 시각: ${when} · 제출본 ${d.isComplete ? "✓ 조건 충족" : "✗ 미충족"}`
+    : `제출 내역 없음`;
   let html =
-    `<div class="stu-meta">제출 시각: ${when} · 제출본 ${d.isComplete ? "✓ 조건 충족" : "✗ 미충족"} ${state}</div>
+    `<div class="stu-meta">${base} ${state}</div>
      <div class="stu-reqs">${chips}</div>
      <div class="spread">${cols}</div>`;
 

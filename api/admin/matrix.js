@@ -76,8 +76,8 @@ export default async function handler(req, res){
   if (view === "student") {
     const sid = req.query.sid;
     const sub = await subCol.findOne({ sid });
-    if (!sub) return res.status(404).json({ error: "제출 내역이 없습니다." });
-    return res.status(200).json(sub);
+    // 미제출이어도 빈 시뮬레이션 화면을 보여주도록 200 응답 (임시저장본은 비공개라 포함하지 않음)
+    return res.status(200).json({ ...(sub || {}), submitted: !!sub });
   }
 
   // ---------- 학급별 현황 ----------
